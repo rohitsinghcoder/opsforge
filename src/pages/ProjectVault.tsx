@@ -5,7 +5,7 @@ import { Zap, Cpu, Activity, ArrowUpRight, Plus } from 'lucide-react';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { useBlueprintContext } from '../contexts/BlueprintContext';
-import type { Project } from '../data/projects';
+import type { ConvexProject } from '../data/projects';
 
 const ProjectVault = () => {
   const navigate = useNavigate();
@@ -14,7 +14,7 @@ const ProjectVault = () => {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [scrollProgress, setScrollProgress] = useState(0);
   const { setHoverMeta } = useBlueprintContext();
-  const [explorerProject, setExplorerProject] = useState<Project | null>(null);
+  const [explorerProject, setExplorerProject] = useState<ConvexProject | null>(null);
   const [activeTab, setActiveTab] = useState<'stack' | 'palette' | 'data'>('stack');
 
   const projects = useQuery(api.projects.get);
@@ -119,7 +119,7 @@ const ProjectVault = () => {
           <motion.div 
             key={project._id}
             whileHover={{ y: -20 }}
-            onClick={() => setExplorerProject(project as any)}
+            onClick={() => setExplorerProject(project as ConvexProject)}
             onMouseEnter={(e) => {
               const bounds = (e.currentTarget as HTMLElement).getBoundingClientRect();
               setHoverMeta({
@@ -158,8 +158,10 @@ const ProjectVault = () => {
                 
                 <div>
                   <h3 className="text-6xl md:text-8xl font-black uppercase tracking-tighter leading-[0.8] mb-6 group-hover:italic transition-all">
-                    {project.title.split(' ')[0]} <br />
-                    <span className="text-outline">{project.title.split(' ')[1]}</span>
+                    {project.title.split(' ')[0]}
+                    {project.title.split(' ').length > 1 && (
+                      <><br /><span className="text-outline">{project.title.split(' ').slice(1).join(' ')}</span></>
+                    )}
                   </h3>
                   <div className="flex items-center gap-4">
                     <span className="w-8 h-px bg-accent/30" />

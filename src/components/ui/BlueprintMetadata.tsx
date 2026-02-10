@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Activity } from 'lucide-react';
 import { useBlueprintContext } from '../../contexts/BlueprintContext';
@@ -20,49 +20,50 @@ const BlueprintMetadata = () => {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
+  // Stable hex code that only changes when the hovered element changes
+  const diagnosticHex = useMemo(
+    () => Math.floor(Math.random() * 1000).toString(16).toUpperCase(),
+    [hoverMeta?.name]
+  );
+
   if (!blueprint || !hoverMeta) return null;
 
   const targetX = mousePos.x + (side.x === 1 ? 25 : -225);
   const targetY = mousePos.y + (side.y === 1 ? 25 : -145);
 
+  // Compute safe endpoint coordinates for the connection line
+  const endX = hoverMeta.targetX ?? targetX;
+  const endY = hoverMeta.targetY ?? targetY;
+  const startX = targetX + (side.x === 1 ? 0 : 200);
+  const startY = targetY + 20;
+
+  // Only render the connection line when we have valid target coordinates
+  const hasTarget = hoverMeta.targetX !== undefined && hoverMeta.targetY !== undefined;
+
   return (
     <>
       {/* Neural Connection Line */}
-      <svg className="fixed inset-0 w-full h-full pointer-events-none z-[140]">
-        <motion.line
-          x1={targetX + (side.x === 1 ? 0 : 200)}
-          y1={targetY + 20}
-          x2={hoverMeta.targetX || targetX}
-          y2={hoverMeta.targetY || targetY}
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ 
-            x1: targetX + (side.x === 1 ? 0 : 200),
-            y1: targetY + 20,
-            x2: hoverMeta.targetX || targetX,
-            y2: hoverMeta.targetY || targetY,
-            pathLength: 1,
-            opacity: 0.4
-          }}
-          transition={{ x1: { duration: 0 }, y1: { duration: 0 }, x2: { duration: 0 }, y2: { duration: 0 } }}
-          stroke="#c4ff0e"
-          strokeWidth="1"
-          strokeDasharray="4 4"
-        />
-        <motion.circle
-          cx={hoverMeta.targetX || targetX}
-          cy={hoverMeta.targetY || targetY}
-          initial={{ opacity: 0.2, scale: 1 }}
-          animate={{ 
-            cx: hoverMeta.targetX || targetX,
-            cy: hoverMeta.targetY || targetY,
-            opacity: [0.2, 0.5, 0.2],
-            scale: [1, 1.5, 1]
-          }}
-          transition={{ cx: { duration: 0 }, cy: { duration: 0 }, repeat: Infinity, duration: 2 }}
-          r="4"
-          fill="#c4ff0e"
-        />
-      </svg>
+      {hasTarget && (
+        <svg className="fixed inset-0 w-full h-full pointer-events-none z-[140]">
+          <line
+            x1={startX}
+            y1={startY}
+            x2={endX}
+            y2={endY}
+            stroke="#c4ff0e"
+            strokeWidth="1"
+            strokeDasharray="4 4"
+            opacity="0.4"
+          />
+          <circle
+            cx={endX}
+            cy={endY}
+            r="4"
+            fill="#c4ff0e"
+            opacity="0.4"
+          />
+        </svg>
+      )}
 
       <motion.div
         initial={{ opacity: 0, scale: 0.8, x: targetX, y: targetY }}
@@ -106,7 +107,7 @@ const BlueprintMetadata = () => {
               <Activity size={8} />
               <span>Diagnostic_OK</span>
             </div>
-            <span className="text-[7px] text-zinc-700">0x{Math.floor(Math.random() * 1000).toString(16).toUpperCase()}</span>
+            <span className="text-[7px] text-zinc-700">0x{diagnosticHex}</span>
           </div>
         </div>
       </div>

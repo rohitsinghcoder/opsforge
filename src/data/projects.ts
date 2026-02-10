@@ -12,6 +12,13 @@ export interface Project {
   stack: string[];
 }
 
+// Extended type for projects returned from Convex (includes DB-generated fields)
+export interface ConvexProject extends Project {
+  _id: string;
+  _creationTime: number;
+  is_hidden: boolean;
+}
+
 export const projects: Project[] = [
   { 
     id: 1, 

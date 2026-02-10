@@ -15,12 +15,7 @@ interface BlueprintContextType {
   setHoverMeta: (m: ComponentMeta | null) => void;
 }
 
-const BlueprintContext = createContext<BlueprintContextType>({
-  blueprint: false,
-  setBlueprint: (_b: boolean) => {},
-  hoverMeta: null,
-  setHoverMeta: (_m: ComponentMeta | null) => {}
-});
+const BlueprintContext = createContext<BlueprintContextType | null>(null);
 
 export const useBlueprintContext = () => {
   const context = useContext(BlueprintContext);

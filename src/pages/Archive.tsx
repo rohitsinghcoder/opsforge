@@ -16,7 +16,7 @@ const Archive = () => {
             <Link 
               key={p._id} 
               to={`/works/${p.slug}`}
-              className="grid grid-cols-1 md:grid-cols-12 py-6 md:py-10 border-b border-white/5 group hover:bg-white/[0.02] transition-colors px-2 md:px-4 block"
+              className="grid grid-cols-1 md:grid-cols-12 py-6 md:py-10 border-b border-white/5 group hover:bg-white/[0.02] transition-colors px-2 md:px-4"
             >
               <div className="col-span-1 font-mono text-sm text-zinc-500 mb-1 md:mb-0">{p.year}</div>
               <div className="col-span-6">

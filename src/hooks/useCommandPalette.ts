@@ -4,7 +4,7 @@ import { useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { askEcho } from '../services/ai';
 
-const commands = ['/home', '/vault', '/works', '/archive', '/contact', '/github', '/ideas', '/builder', '/blueprint', '/ask', '/override'];
+const commands = ['/home', '/vault', '/works', '/archive', '/contact', '/github', '/ideas', '/builder', '/playground', '/blueprint', '/ask', '/override'];
 
 interface UseCommandPaletteProps {
   blueprint: boolean;
@@ -82,18 +82,29 @@ export const useCommandPalette = ({ blueprint, setBlueprint, onBreach }: UseComm
         content: `Query: ${args.substring(0, 100)}${args.length > 100 ? '...' : ''}`
       });
 
-      const response = await askEcho(args, chatHistory);
-      setAiResponse(response);
-      setChatHistory(prev => [...prev, 
-        { role: "user", parts: [{ text: args }] },
-        { role: "assistant", parts: [{ text: response }] }
-      ]);
-      setIsAiLoading(false);
+      try {
+        const response = await askEcho(args, chatHistory);
+        setAiResponse(response);
+        setChatHistory(prev => [...prev, 
+          { role: "user", parts: [{ text: args }] },
+          { role: "assistant", parts: [{ text: response }] }
+        ].slice(-20));
+      } catch (error) {
+        console.error("AI_COMMAND_ERROR:", error);
+        const errorMsg = "SYSTEM_FAILURE: Neural link disrupted. Check console logs.";
+        setAiResponse(errorMsg);
+        setChatHistory(prev => [...prev,
+          { role: "user", parts: [{ text: args }] },
+          { role: "assistant", parts: [{ text: errorMsg }] }
+        ].slice(-20));
+      } finally {
+        setIsAiLoading(false);
+      }
       setCommandInput("");
       return;
     }
     
-    const isNavCommand = ['/home', '/vault', '/works', '/archive', '/contact', '/github', '/ideas', '/builder'].includes(cmd);
+    const isNavCommand = ['/home', '/vault', '/works', '/archive', '/contact', '/github', '/ideas', '/builder', '/playground'].includes(cmd);
     
     if (cmd === '/home') navigate('/');
     if (cmd === '/vault') navigate('/vault');
@@ -103,6 +114,7 @@ export const useCommandPalette = ({ blueprint, setBlueprint, onBreach }: UseComm
     if (cmd === '/github') navigate('/my-projects');
     if (cmd === '/ideas') navigate('/ideas');
     if (cmd === '/builder') navigate('/builder');
+    if (cmd === '/playground') navigate('/playground');
     if (cmd === '/blueprint') setBlueprint(!blueprint);
     
     setCommandInput("");
@@ -120,6 +132,13 @@ export const useCommandPalette = ({ blueprint, setBlueprint, onBreach }: UseComm
     setAiResponse(null);
   }, []);
 
+  const addToChatHistory = useCallback((userText: string, aiResponse: string) => {
+    setChatHistory(prev => [...prev,
+      { role: "user", parts: [{ text: userText }] },
+      { role: "assistant", parts: [{ text: aiResponse }] }
+    ].slice(-20));
+  }, []);
+
   return {
     isCommandOpen,
     setIsCommandOpen,
@@ -132,7 +151,8 @@ export const useCommandPalette = ({ blueprint, setBlueprint, onBreach }: UseComm
     executeCommand,
     commands,
     chatHistory,
-    clearChatHistory
+    clearChatHistory,
+    addToChatHistory
   };
 };
 

@@ -4,10 +4,10 @@ import { ArrowUpRight } from 'lucide-react';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { useBlueprintContext } from '../contexts/BlueprintContext';
-import type { Project } from '../data/projects';
+import type { ConvexProject } from '../data/projects';
 
 interface ProjectCardProps {
-  project: Project;
+  project: ConvexProject;
   idx: number;
 }
 
@@ -68,7 +68,7 @@ const Works = () => {
         <h1 className="text-7xl md:text-[10vw] font-black uppercase tracking-tighter leading-none mb-32">Legacy</h1>
         <div className="grid grid-cols-1 md:grid-cols-12 gap-x-12 gap-y-32">
           {projects.map((project, idx) => (
-            <ProjectCard key={project._id} project={project as any} idx={idx} />
+            <ProjectCard key={project._id} project={project as ConvexProject} idx={idx} />
           ))}
         </div>
       </div>

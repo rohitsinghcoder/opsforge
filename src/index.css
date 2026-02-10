@@ -93,7 +93,7 @@ body {
   opacity: 0.05;
   z-index: 9999;
   pointer-events: none;
-  background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+  background-image: url("/noise.svg");
 }
 
 /* Glitch Effect - More aggressive */

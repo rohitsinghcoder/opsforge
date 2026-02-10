@@ -12,6 +12,10 @@ if (!PUBLISHABLE_KEY) {
   throw new Error("Missing Clerk Publishable Key")
 }
 
+if (!CONVEX_URL) {
+  throw new Error("Missing Convex URL. Set VITE_CONVEX_URL in your environment.")
+}
+
 const convex = new ConvexReactClient(CONVEX_URL as string);
 
 createRoot(document.getElementById('root')!).render(

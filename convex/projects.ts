@@ -4,7 +4,8 @@ import { v } from "convex/values";
 // Get all projects
 export const get = query({
   handler: async (ctx) => {
-    return await ctx.db.query("projects").collect();
+    const all = await ctx.db.query("projects").collect();
+    return all.filter((p) => !p.is_hidden);
   },
 });
 
@@ -22,7 +23,21 @@ export const getBySlug = query({
 // Seed data from local file
 export const seed = mutation({
   args: {
-    projects: v.array(v.any()),
+    projects: v.array(
+      v.object({
+        id: v.number(),
+        slug: v.string(),
+        title: v.string(),
+        category: v.string(),
+        image: v.string(),
+        wireframe: v.string(),
+        year: v.string(),
+        client: v.string(),
+        role: v.string(),
+        description: v.string(),
+        stack: v.array(v.string()),
+      })
+    ),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.query("projects").collect();

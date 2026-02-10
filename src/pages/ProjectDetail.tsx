@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Zap } from 'lucide-react';
@@ -11,6 +12,12 @@ const ProjectDetail = () => {
   const { blueprint, setHoverMeta } = useBlueprintContext();
   
   const project = useQuery(api.projects.getBySlug, { slug: slug || "" });
+
+  // Stable random values that only change per-slug, not on every render
+  const blueprintCoords = useMemo(() => ({
+    x: Math.random().toFixed(4),
+    y: Math.random().toFixed(4),
+  }), [slug]);
 
   if (project === undefined) return (
     <div className="h-screen flex items-center justify-center font-mono uppercase text-accent gap-3">
@@ -46,8 +53,10 @@ const ProjectDetail = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 mb-32">
           <div className="lg:col-span-8">
             <h1 className="text-7xl md:text-[8vw] font-black uppercase tracking-tighter leading-none mb-8">
-              {project.title.split(' ')[0]} <br />
-              <span className="text-outline">{project.title.split(' ').slice(1).join(' ')}</span>
+              {project.title.split(' ')[0]}
+              {project.title.split(' ').length > 1 && (
+                <><br /><span className="text-outline">{project.title.split(' ').slice(1).join(' ')}</span></>
+              )}
             </h1>
             <div className="flex gap-4">
               {project.stack.map(tech => (
@@ -106,8 +115,8 @@ const ProjectDetail = () => {
               <div className="absolute top-0 left-1/2 w-[1px] h-full bg-accent/20" />
               <div className="absolute inset-0 border border-accent/10 m-10" />
               <div className="absolute bottom-10 right-10 font-mono text-[9px] text-accent flex flex-col items-end gap-1">
-                <span>COORD_X: {Math.random().toFixed(4)}</span>
-                <span>COORD_Y: {Math.random().toFixed(4)}</span>
+                <span>COORD_X: {blueprintCoords.x}</span>
+                <span>COORD_Y: {blueprintCoords.y}</span>
                 <span>MESH_DENSITY: 0.84</span>
               </div>
             </div>

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Canvas } from '@react-three/fiber';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EyeOff, Activity, Cpu, Plus, Zap, Terminal } from 'lucide-react';
+import { EyeOff, Activity, Cpu, Plus, Zap, Terminal, Mic, Loader2, Volume2 } from 'lucide-react';
 import {
   SignedIn,
   SignedOut,
@@ -25,6 +25,7 @@ import { BlueprintProvider, type ComponentMeta } from '../../contexts/BlueprintC
 import useHeatmapTracking from '../../hooks/useHeatmapTracking';
 import useVelocityTracker from '../../hooks/useVelocityTracker';
 import useCommandPalette from '../../hooks/useCommandPalette';
+import useVoiceChat from '../../hooks/useVoiceChat';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -56,7 +57,8 @@ const Layout = ({ children }: LayoutProps) => {
     executeCommand,
     commands,
     chatHistory,
-    clearChatHistory
+    clearChatHistory,
+    addToChatHistory
   } = useCommandPalette({
     blueprint,
     setBlueprint,
@@ -65,6 +67,17 @@ const Layout = ({ children }: LayoutProps) => {
       setBreachStep(1);
     }
   });
+
+  // Voice Chat
+  const {
+    voiceState,
+    transcript,
+    voiceResponse,
+    error: voiceError,
+    startVoiceChat,
+    stopVoiceChat,
+    isSupported: isVoiceSupported,
+  } = useVoiceChat(chatHistory, addToChatHistory);
 
   // Clerk User
   const { user, isSignedIn } = useUser();
@@ -89,22 +102,29 @@ const Layout = ({ children }: LayoutProps) => {
     }
   }, [isSignedIn, user, syncUser]);
 
-  // Track page views
+  // Track page views — deduplicated to prevent duplicate DB writes
+  const lastTrackedPage = useRef<string>('');
   useEffect(() => {
+    const key = `${pathname}|${user?.id || 'anon'}`;
+    if (key === lastTrackedPage.current) return;
+    lastTrackedPage.current = key;
+
     trackPageView({
       clerkId: user?.id,
       path: pathname,
       projectSlug: pathname.startsWith('/works/') ? pathname.split('/works/')[1] : undefined,
       sessionId: sessionId,
     });
-  }, [pathname, user?.id, trackPageView, sessionId]);
+  }, [pathname, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Seed data if empty
+  // Seed data if empty — only attempt once
+  const hasSeeded = useRef(false);
   useEffect(() => {
-    if (projects && projects.length === 0) {
+    if (projects && projects.length === 0 && !hasSeeded.current) {
+      hasSeeded.current = true;
       seedProjects({ projects: localProjects });
     }
-  }, [projects, seedProjects]);
+  }, [projects]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Breach handling
   useEffect(() => {
@@ -291,7 +311,78 @@ const Layout = ({ children }: LayoutProps) => {
                     placeholder="/ask your question..."
                     className="flex-1 bg-transparent border-none outline-none font-mono text-accent placeholder:text-accent/30 text-sm md:text-base min-w-0"
                   />
+                  {isVoiceSupported && (
+                    <button
+                      type="button"
+                      onClick={voiceState === 'idle' ? startVoiceChat : stopVoiceChat}
+                      className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center border transition-all ${
+                        voiceState === 'listening'
+                          ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse'
+                          : voiceState === 'processing'
+                            ? 'bg-accent/20 border-accent text-accent'
+                            : voiceState === 'speaking'
+                              ? 'bg-accent/20 border-accent text-accent'
+                              : 'border-white/20 text-zinc-500 hover:border-accent hover:text-accent'
+                      }`}
+                      aria-label={voiceState === 'idle' ? 'Start voice chat' : 'Stop voice chat'}
+                    >
+                      {voiceState === 'listening' ? <Mic size={14} /> :
+                       voiceState === 'processing' ? <Loader2 size={14} className="animate-spin" /> :
+                       voiceState === 'speaking' ? <Volume2 size={14} /> :
+                       <Mic size={14} />}
+                    </button>
+                  )}
                 </form>
+
+                {/* Voice State Indicator */}
+                <AnimatePresence>
+                  {voiceState !== 'idle' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="px-4 md:px-6 pb-3 border-t border-accent/10"
+                    >
+                      <div className="flex items-center justify-between py-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {voiceState === 'listening' && (
+                            <>
+                              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shrink-0" />
+                              <span className="font-mono text-xs text-red-400 uppercase tracking-widest truncate">
+                                {transcript || 'Listening...'}
+                              </span>
+                            </>
+                          )}
+                          {voiceState === 'processing' && (
+                            <>
+                              <Loader2 size={12} className="text-accent animate-spin shrink-0" />
+                              <span className="font-mono text-xs text-accent truncate">
+                                "{transcript}"
+                              </span>
+                            </>
+                          )}
+                          {voiceState === 'speaking' && (
+                            <>
+                              <Volume2 size={12} className="text-accent animate-pulse shrink-0" />
+                              <span className="font-mono text-xs text-zinc-400 truncate">
+                                {voiceResponse.substring(0, 80)}{voiceResponse.length > 80 ? '...' : ''}
+                              </span>
+                            </>
+                          )}
+                          {voiceState === 'error' && (
+                            <span className="font-mono text-xs text-red-400">{voiceError}</span>
+                          )}
+                        </div>
+                        <button
+                          onClick={stopVoiceChat}
+                          className="font-mono text-[8px] text-zinc-600 uppercase hover:text-red-400 transition-colors shrink-0 ml-3"
+                        >
+                          [ Stop ]
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* AI Chat History Area */}
                 {(isAiLoading || chatHistory.length > 0) && (
@@ -537,6 +628,8 @@ const Layout = ({ children }: LayoutProps) => {
                   { label: "Works", path: "/works" },
                   { label: "Archive", path: "/archive" },
                   { label: "Contact", path: "/contact" },
+                  { label: "Ideas", path: "/ideas" },
+                  { label: "Playground", path: "/playground" },
                   { label: "Vault", path: "/vault" },
                   { label: "My Projects", path: "/my-projects" },
                 ].map((item, idx) => (
@@ -634,8 +727,7 @@ const Layout = ({ children }: LayoutProps) => {
           <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-8 text-[10px] font-mono uppercase tracking-widest text-zinc-500">
             <p>© 2026 Echo Studio</p>
             <div className="flex gap-8">
-              <a href="#">Twitter</a>
-              <a href="#">Instagram</a>
+              <span className="text-zinc-500">Rohit Singh</span>
             </div>
             <p>{blueprint ? "MODE: DEBUG_ACTIVE" : "Built for the bold"}</p>
           </div>

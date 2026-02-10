@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from 'convex/react';
 import { motion } from 'framer-motion';
@@ -9,13 +9,15 @@ const SharedProject = () => {
   const { slug } = useParams<{ slug: string }>();
   const project = useQuery(api.user_projects.getBySlug, slug ? { slug } : "skip");
   const incrementViews = useMutation(api.user_projects.incrementViews);
+  const hasIncremented = useRef(false);
 
-  // Increment view count on mount
+  // Increment view count only once per mount
   useEffect(() => {
-    if (slug) {
+    if (slug && !hasIncremented.current) {
+      hasIncremented.current = true;
       incrementViews({ slug });
     }
-  }, [slug, incrementViews]);
+  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (project === undefined) {
     return (
@@ -97,11 +99,11 @@ const SharedProject = () => {
               <span className="inline-block px-3 py-1 bg-accent/10 border border-accent/30 rounded-full font-mono text-[10px] text-accent uppercase tracking-widest mb-4">
                 {project.category}
               </span>
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-black uppercase tracking-tighter leading-[0.85] mb-6">
-                {project.title.split(' ')[0]} <br />
-                <span className="text-outline italic">
-                  {project.title.split(' ').slice(1).join(' ') || ''}
-                </span>
+              <h1 className="text-4xl md:text-5xl lg:text-7xl xl:text-8xl font-black uppercase tracking-tighter leading-[0.85] mb-6">
+                {project.title.split(' ')[0]}
+                {project.title.split(' ').length > 1 && (
+                  <><br /><span className="text-outline italic">{project.title.split(' ').slice(1).join(' ')}</span></>
+                )}
               </h1>
             </motion.div>
           </div>

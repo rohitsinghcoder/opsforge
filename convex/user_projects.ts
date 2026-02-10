@@ -41,7 +41,22 @@ export const create = mutation({
     }
 
     const now = Date.now();
-    const shareSlug = generateSlug();
+
+    // Generate a unique slug with collision check
+    let shareSlug = generateSlug();
+    let attempts = 0;
+    while (attempts < 10) {
+      const existing = await ctx.db
+        .query("user_projects")
+        .withIndex("by_slug", (q) => q.eq("shareSlug", shareSlug))
+        .first();
+      if (!existing) break;
+      shareSlug = generateSlug();
+      attempts++;
+    }
+    if (attempts >= 10) {
+      throw new Error("Failed to generate unique slug after 10 attempts");
+    }
 
     const projectId = await ctx.db.insert("user_projects", {
       userId: user._id,
