@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { useQuery } from 'convex/react';
@@ -34,7 +34,7 @@ const ProjectCard = ({ project, idx }: ProjectCardProps) => {
       onMouseLeave={() => setHoverMeta(null)}
     >
       <div ref={cardRef} className={`overflow-hidden rounded-3xl bg-zinc-900 relative ${idx % 3 === 0 ? 'aspect-video' : 'aspect-[4/5]'} border border-white/5`}>
-        <img src={project.image} className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-1000" alt="" />
+        <img src={project.image} className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-1000" alt={project.title} />
         {blueprint && (
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             <div className="w-full h-px bg-accent/20 absolute top-1/2" />
@@ -59,13 +59,18 @@ const ProjectCard = ({ project, idx }: ProjectCardProps) => {
 
 const Works = () => {
   const projects = useQuery(api.projects.get);
+
+  useEffect(() => {
+    document.title = 'Works | Echo Studio';
+    return () => { document.title = 'Echo Studio | Beyond Digital Bounds'; };
+  }, []);
   
   if (!projects) return <div className="pt-48 pb-24 px-6 min-h-screen flex items-center justify-center font-mono uppercase text-accent">Accessing_Archives...</div>;
 
   return (
     <div className="pt-48 pb-24 px-6 min-h-screen">
       <div className="container mx-auto">
-        <h1 className="text-7xl md:text-[10vw] font-black uppercase tracking-tighter leading-none mb-32">Legacy</h1>
+        <h1 className="text-7xl md:text-[10vw] font-black uppercase tracking-tighter leading-none mb-32">Works</h1>
         <div className="grid grid-cols-1 md:grid-cols-12 gap-x-12 gap-y-32">
           {projects.map((project, idx) => (
             <ProjectCard key={project._id} project={project as ConvexProject} idx={idx} />

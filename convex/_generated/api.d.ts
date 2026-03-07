@@ -8,7 +8,9 @@
  * @module
  */
 
+import type * as ai from "../ai.js";
 import type * as heatmap from "../heatmap.js";
+import type * as lib_auth from "../lib/auth.js";
 import type * as logs from "../logs.js";
 import type * as projects from "../projects.js";
 import type * as user_projects from "../user_projects.js";
@@ -21,7 +23,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  ai: typeof ai;
   heatmap: typeof heatmap;
+  "lib/auth": typeof lib_auth;
   logs: typeof logs;
   projects: typeof projects;
   user_projects: typeof user_projects;

@@ -45,10 +45,19 @@ Commands: `/home`, `/vault`, `/works`, `/archive`, `/contact`, `/github`, `/blue
    ```
    VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
    VITE_CONVEX_URL=your_convex_deployment_url
-   VITE_GEMINI_API_KEY=your_gemini_api_key
    ```
 3. Start the dev server:
    `npm run dev`
+
+4. Configure Convex server env vars:
+   ```
+   CLERK_JWT_ISSUER_DOMAIN=https://your-clerk-frontend-api
+   GEMINI_API_KEY=your_gemini_api_key
+   ELEVENLABS_API_KEY=your_elevenlabs_api_key
+   ```
+   Set them with `npx convex env set ...` on the deployment you are using.
+
+5. In Clerk, create a JWT template named `convex`.
 
 ## Scripts
 - `npm run dev` - start Vite
@@ -58,4 +67,4 @@ Commands: `/home`, `/vault`, `/works`, `/archive`, `/contact`, `/github`, `/blue
 
 ## Notes
 - `/my-projects` requires a Clerk user with GitHub OAuth connected.
-- AI features require `VITE_GEMINI_API_KEY`; otherwise the assistant returns a config error.
+- Convex auth requires `convex/auth.config.ts` to match your Clerk Frontend API URL.

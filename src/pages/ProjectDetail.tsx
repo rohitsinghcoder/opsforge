@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Zap } from 'lucide-react';
@@ -13,11 +13,25 @@ const ProjectDetail = () => {
   
   const project = useQuery(api.projects.getBySlug, { slug: slug || "" });
 
-  // Stable random values that only change per-slug, not on every render
-  const blueprintCoords = useMemo(() => ({
-    x: Math.random().toFixed(4),
-    y: Math.random().toFixed(4),
-  }), [slug]);
+  // Deterministic pseudo-random coords derived from slug (pure, no Math.random)
+  const blueprintCoords = useMemo(() => {
+    const str = slug || "default";
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+    }
+    const x = ((Math.abs(hash) % 10000) / 10000).toFixed(4);
+    const y = ((Math.abs((hash * 2654435761) | 0) % 10000) / 10000).toFixed(4);
+    return { x, y };
+  }, [slug]);
+
+  // Set page title
+  useEffect(() => {
+    if (project) {
+      document.title = `${project.title} | Echo Studio`;
+    }
+    return () => { document.title = 'Echo Studio | Beyond Digital Bounds'; };
+  }, [project]);
 
   if (project === undefined) return (
     <div className="h-screen flex items-center justify-center font-mono uppercase text-accent gap-3">
@@ -105,6 +119,7 @@ const ProjectDetail = () => {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.8, ease: "circOut" }}
               src={blueprint ? project.wireframe : project.image}
+              alt={project.title}
               className={`w-full h-full object-cover ${blueprint ? 'grayscale invert brightness-50 opacity-40' : ''}`}
             />
           </AnimatePresence>
@@ -158,12 +173,12 @@ const ProjectDetail = () => {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
               <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/5">
-                <h4 className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-4">Challenge</h4>
-                <p className="text-zinc-400 text-sm leading-relaxed">Pushing the boundaries of conventional interface design to meet the demands of emerging technologies.</p>
+                <h4 className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-4">Category</h4>
+                <p className="text-zinc-400 text-sm leading-relaxed">{project.category} — crafted by {project.client} with a focus on {project.stack[0]} and {project.stack.length > 1 ? project.stack[1] : 'modern workflows'}.</p>
               </div>
               <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/5">
-                <h4 className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-4">Solution</h4>
-                <p className="text-zinc-400 text-sm leading-relaxed">Integrated real-time data processing with a minimal, high-fidelity visual language.</p>
+                <h4 className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mb-4">Stack</h4>
+                <p className="text-zinc-400 text-sm leading-relaxed">Built with {project.stack.join(', ')} to deliver a high-fidelity, production-ready digital experience.</p>
               </div>
             </div>
           </div>

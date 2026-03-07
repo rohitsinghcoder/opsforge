@@ -1,9 +1,15 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 
 const Archive = () => {
   const projects = useQuery(api.projects.get);
+
+  useEffect(() => {
+    document.title = 'Archive | Echo Studio';
+    return () => { document.title = 'Echo Studio | Beyond Digital Bounds'; };
+  }, []);
 
   if (!projects) return <div className="pt-48 pb-24 px-6 min-h-screen flex items-center justify-center font-mono uppercase text-accent">Accessing_Data_Vault...</div>;
 

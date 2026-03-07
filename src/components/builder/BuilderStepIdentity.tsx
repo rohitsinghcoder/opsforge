@@ -23,7 +23,8 @@ const CATEGORIES = [
   'Full Stack',
 ];
 
-const YEARS = ['2026', '2025', '2024', '2023', '2022', '2021', '2020'];
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from({ length: 7 }, (_, index) => String(currentYear - index));
 
 const BuilderStepIdentity = ({ data, onChange }: Props) => {
   return (

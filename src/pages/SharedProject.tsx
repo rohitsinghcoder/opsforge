@@ -223,7 +223,7 @@ const SharedProject = () => {
                   <Eye size={10} />
                   Views
                 </p>
-                <p className="font-bold">{project.viewCount + 1}</p>
+                <p className="font-bold">{project.viewCount}</p>
               </div>
             </div>
 

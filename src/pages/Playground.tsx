@@ -3,176 +3,47 @@ import { Sandpack } from '@codesandbox/sandpack-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, RotateCcw, Sparkles, Loader2, Copy, Check, Send, Zap } from 'lucide-react';
 import { useBlueprintContext } from '../contexts/BlueprintContext';
+import { usePlaygroundAI } from '../hooks/usePlaygroundAI';
 
-const STARTER_CODE = `import { useState } from 'react';
-
-export default function App() {
-  const [count, setCount] = useState(0);
-
-  return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#050505',
-      color: '#fff',
-      fontFamily: 'Inter, system-ui, sans-serif',
-    }}>
-      <h1 style={{ fontSize: '3rem', fontWeight: 900, letterSpacing: '-0.05em' }}>
-        Echo Playground
-      </h1>
-      <p style={{ color: '#888', marginBottom: '2rem' }}>
-        Start building something amazing
-      </p>
-      <button
-        onClick={() => setCount(c => c + 1)}
-        style={{
-          background: '#c4ff0e',
-          color: '#000',
-          border: 'none',
-          padding: '12px 32px',
-          fontSize: '1rem',
-          fontWeight: 900,
-          borderRadius: '999px',
-          cursor: 'pointer',
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-        }}
-      >
-        Clicked {count} times
-      </button>
-    </div>
-  );
-}`;
-
-const AI_PROMPTS = [
-  'Add a dark glassmorphism card with a gradient border',
-  'Create an animated loading spinner',
-  'Build a mini calculator',
-  'Make a color palette generator',
-  'Add a typing animation effect',
-];
-
-const SYSTEM_RULES = `RULES:
-- Export default the component
-- Always add "import { useState, useEffect, useRef } from 'react';" at the top if you use any hooks
-- Use inline styles only (no CSS imports)
-- Use a dark theme (background #050505, text white, accent #c4ff0e)
-- Make it visually impressive with smooth transitions
-- Keep it in a single file
-- Return ONLY the raw JavaScript code, no markdown, no code fences, no explanation
-
-Example format:
-import { useState } from 'react';
-
-export default function App() {
-  const [x, setX] = useState(0);
-  return <div>Hello</div>;
-}`;
-
-interface ChatMessage {
-  role: 'user' | 'ai';
-  text: string;
-}
+import {
+  INITIAL_FILES,
+  AI_PROMPTS,
+  SYSTEM_RULES
+} from '../utils/playgroundTemplates';
 
 const Playground = () => {
   const { blueprint } = useBlueprintContext();
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [activePrompt, setActivePrompt] = useState<string | null>(null);
-  const [customFiles, setCustomFiles] = useState<Record<string, string>>({
-    '/App.js': STARTER_CODE,
-  });
   const [resetKey, setResetKey] = useState(0);
   const [copied, setCopied] = useState(false);
-
-  // Responsive editor height
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-
-  // AI Chat state
-  const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const {
+    isAiLoading,
+    activePrompt,
+    customFiles,
+    setCustomFiles,
+    chatInput,
+    setChatInput,
+    chatMessages,
+    handleChatSubmit,
+    generateFromPrompt,
+    clearChat
+  } = usePlaygroundAI({
+    systemRules: SYSTEM_RULES,
+    initialFiles: INITIAL_FILES,
+  });
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  const callAi = async (prompt: string, isModification: boolean): Promise<string | null> => {
-    const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!API_KEY) return null;
+  const onGenerateTriggered = () => setResetKey(k => k + 1);
 
-    const { GoogleGenAI } = await import('@google/genai');
-    const client = new GoogleGenAI({ apiKey: API_KEY });
-
-    const fullPrompt = isModification
-      ? `You are a React component editor. Here is the current code:\n\n\`\`\`jsx\n${customFiles['/App.js']}\n\`\`\`\n\nThe user wants you to: ${prompt}\n\n${SYSTEM_RULES}`
-      : `You are a React component generator. Generate a single React component that: ${prompt}\n\n${SYSTEM_RULES}`;
-
-    const result = await client.models.generateContent({
-      model: 'gemini-2.5-flash-lite',
-      contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-      config: { temperature: 0.8 },
-    });
-
-    let code = result.text || '';
-    if (code.startsWith('```')) {
-      code = code.replace(/^```(?:jsx?|tsx?|javascript|typescript)?\n?/, '').replace(/\n?```$/, '');
-    }
-    return code.trim();
-  };
-
-  const handleAiGenerate = async (prompt: string) => {
-    setIsAiLoading(true);
-    setActivePrompt(prompt);
-    try {
-      const code = await callAi(prompt, false);
-      if (code) {
-        setCustomFiles({ '/App.js': code });
-        setResetKey(k => k + 1);
-      }
-    } catch (err) {
-      console.error('AI generation error:', err);
-    } finally {
-      setIsAiLoading(false);
-      setActivePrompt(null);
-    }
-  };
-
-  const handleChatSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const msg = chatInput.trim();
-    if (!msg || isAiLoading) return;
-
-    setChatInput('');
-    setChatMessages(prev => [...prev, { role: 'user', text: msg }]);
-    setIsAiLoading(true);
-
-    try {
-      const code = await callAi(msg, true);
-      if (code) {
-        setCustomFiles({ '/App.js': code });
-        setResetKey(k => k + 1);
-        setChatMessages(prev => [...prev, { role: 'ai', text: '✓ Code updated' }]);
-      } else {
-        setChatMessages(prev => [...prev, { role: 'ai', text: '✗ Failed to generate code' }]);
-      }
-    } catch {
-      setChatMessages(prev => [...prev, { role: 'ai', text: '✗ Error — try again' }]);
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
+  const handleAiGenerate = (prompt: string) => generateFromPrompt(prompt, onGenerateTriggered);
+  const handleFormSubmit = (e: React.FormEvent) => handleChatSubmit(e, onGenerateTriggered);
 
   const handleReset = () => {
-    setCustomFiles({ '/App.js': STARTER_CODE });
+    setCustomFiles(INITIAL_FILES);
     setResetKey(k => k + 1);
   };
 
@@ -212,7 +83,7 @@ const Playground = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="flex flex-wrap items-center gap-2 md:gap-3 mb-4 md:mb-6"
+          className="flex flex-wrap items-center gap-3 mb-6"
         >
           <button
             onClick={handleReset}
@@ -230,29 +101,27 @@ const Playground = () => {
 
           <div className="h-6 w-px bg-white/10 mx-1 hidden md:block" />
 
-          {/* AI Quick Prompts — horizontally scrollable on mobile */}
-          <div className="w-full md:w-auto overflow-x-auto no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-            <div className="flex gap-2 w-max md:flex-wrap md:w-auto">
-              {AI_PROMPTS.map((prompt) => (
-                <button
-                  key={prompt}
-                  onClick={() => handleAiGenerate(prompt)}
-                  disabled={isAiLoading}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-[9px] uppercase tracking-wider transition-all whitespace-nowrap ${
-                    activePrompt === prompt
-                      ? 'bg-accent text-black'
-                      : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-accent'
-                  } ${isAiLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {activePrompt === prompt ? (
-                    <Loader2 size={10} className="animate-spin" />
-                  ) : (
-                    <Sparkles size={10} />
-                  )}
-                  {isMobile && prompt.length > 25 ? prompt.substring(0, 25) + '…' : prompt}
-                </button>
-              ))}
-            </div>
+          {/* AI Quick Prompts */}
+          <div className="flex flex-wrap gap-2">
+            {AI_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                onClick={() => handleAiGenerate(prompt)}
+                disabled={isAiLoading}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-mono text-[9px] uppercase tracking-wider transition-all ${
+                  activePrompt === prompt
+                    ? 'bg-accent text-black'
+                    : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-accent'
+                } ${isAiLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {activePrompt === prompt ? (
+                  <Loader2 size={10} className="animate-spin" />
+                ) : (
+                  <Sparkles size={10} />
+                )}
+                {prompt.length > 30 ? prompt.substring(0, 30) + '...' : prompt}
+              </button>
+            ))}
           </div>
         </motion.div>
 
@@ -317,9 +186,10 @@ const Playground = () => {
             files={customFiles}
             options={{
               showTabs: true,
-              showLineNumbers: !isMobile,
+              showLineNumbers: true,
               showInlineErrors: true,
-              editorHeight: isMobile ? 300 : 500,
+              editorHeight: 500,
+              externalResources: ['https://cdn.tailwindcss.com'],
               classes: {
                 'sp-wrapper': 'custom-sandpack',
               },
@@ -335,7 +205,7 @@ const Playground = () => {
           className="mt-6 bg-[#0a0a0a] border border-white/10 rounded-2xl overflow-hidden"
         >
           {/* Chat Header */}
-          <div className="flex items-center justify-between px-4 md:px-5 py-3 border-b border-white/5">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
             <div className="flex items-center gap-2">
               <Zap size={12} className="text-accent" />
               <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
@@ -344,7 +214,7 @@ const Playground = () => {
             </div>
             {chatMessages.length > 0 && (
               <button
-                onClick={() => setChatMessages([])}
+                onClick={clearChat}
                 className="font-mono text-[8px] text-zinc-600 uppercase hover:text-red-400 transition-colors"
               >
                 [ Clear ]
@@ -354,7 +224,7 @@ const Playground = () => {
 
           {/* Chat Messages */}
           {chatMessages.length > 0 && (
-            <div className="max-h-36 md:max-h-48 overflow-y-auto px-4 md:px-5 py-3 space-y-2 no-scrollbar">
+            <div className="max-h-48 overflow-y-auto px-5 py-3 space-y-2 no-scrollbar">
               {chatMessages.map((msg, i) => (
                 <div
                   key={i}
@@ -375,13 +245,13 @@ const Playground = () => {
           )}
 
           {/* Chat Input */}
-          <form onSubmit={handleChatSubmit} className="flex items-center gap-2 md:gap-3 px-4 md:px-5 py-3 border-t border-white/5">
-            <Sparkles size={14} className="text-accent/50 shrink-0 hidden md:block" />
+          <form onSubmit={handleFormSubmit} className="flex items-center gap-3 px-5 py-3 border-t border-white/5">
+            <Sparkles size={14} className="text-accent/50 shrink-0" />
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder={isMobile ? "Describe a change..." : "Describe a change... e.g. 'add a dark mode toggle' or 'make the button bigger'"}
-              className="flex-1 bg-transparent border-none outline-none font-mono text-xs md:text-sm text-accent placeholder:text-zinc-600 min-w-0"
+              placeholder="Describe a change... e.g. 'add a dark mode toggle' or 'make the button bigger'"
+              className="flex-1 bg-transparent border-none outline-none font-mono text-sm text-accent placeholder:text-zinc-600 min-w-0"
               disabled={isAiLoading}
             />
             <button

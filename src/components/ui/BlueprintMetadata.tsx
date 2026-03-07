@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Activity } from 'lucide-react';
 import { useBlueprintContext } from '../../contexts/BlueprintContext';
@@ -20,11 +20,13 @@ const BlueprintMetadata = () => {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Stable hex code that only changes when the hovered element changes
-  const diagnosticHex = useMemo(
-    () => Math.floor(Math.random() * 1000).toString(16).toUpperCase(),
-    [hoverMeta?.name]
-  );
+  const [diagnosticHex, setDiagnosticHex] = useState('000');
+  useEffect(() => {
+    if (hoverMeta) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDiagnosticHex(Math.floor(Math.random() * 1000).toString(16).toUpperCase());
+    }
+  }, [hoverMeta]);
 
   if (!blueprint || !hoverMeta) return null;
 

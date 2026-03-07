@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { useQuery, useMutation } from 'convex/react';
+import { useQuery, useMutation, useAction } from 'convex/react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -8,8 +8,8 @@ import {
   X, Loader2, Plus, Pencil, Trash2, Eye, Share2, Layers
 } from 'lucide-react';
 import { api } from '../../convex/_generated/api';
-import { analyzeGitHubRepo } from '../services/repoAnalyzer';
 import type { Id } from '../../convex/_generated/dataModel';
+import { getOrCreateClientId } from '../utils/clientIdentity';
 
 interface GitHubRepo {
   id: number;
@@ -36,13 +36,15 @@ const MyProjects = () => {
   const [analyzingRepo, setAnalyzingRepo] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analysisRepoName, setAnalysisRepoName] = useState<string | null>(null);
+  const [clientId] = useState(() => getOrCreateClientId());
 
   // Convex queries for user projects
   const myCreations = useQuery(
     api.user_projects.getMyProjects,
-    user?.id ? { clerkId: user.id } : "skip"
+    user?.id ? {} : "skip"
   );
   const deleteProject = useMutation(api.user_projects.remove);
+  const analyzeGitHubRepo = useAction(api.ai.analyzeGitHubRepo);
   
   // Delete confirmation state
   const [deleteConfirmId, setDeleteConfirmId] = useState<Id<"user_projects"> | null>(null);
@@ -109,7 +111,10 @@ const MyProjects = () => {
     setAnalysisRepoName(repo.name);
     setAnalysisResult(null);
 
-    const result = await analyzeGitHubRepo(repo.full_name);
+    const result = await analyzeGitHubRepo({
+      repoFullName: repo.full_name,
+      clientId,
+    });
     
     if (typeof result === 'string') {
       setAnalysisResult(result);
@@ -123,7 +128,7 @@ const MyProjects = () => {
   const handleDelete = async (projectId: Id<"user_projects">) => {
     if (!user) return;
     try {
-      await deleteProject({ projectId, clerkId: user.id });
+      await deleteProject({ projectId });
       setDeleteConfirmId(null);
     } catch (err) {
       console.error('Failed to delete project:', err);

@@ -1,26 +1,32 @@
 import { useState, useCallback, useRef } from 'react';
-import { askEcho } from '../services/ai';
+import { useAction } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 import {
   listenForSpeech,
-  speak,
+  playGeneratedAudio,
+  speakWithBrowserTTS,
   stopSpeaking,
   isSpeechRecognitionSupported,
 } from '../services/voice';
+import { getOrCreateClientId } from '../utils/clientIdentity';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
 export function useVoiceChat(
-  chatHistory: any[],
+  chatHistory: Array<{ role: 'user' | 'model'; parts: { text: string }[] }>,
   onExchangeComplete?: (userText: string, aiResponse: string) => void
 ) {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [transcript, setTranscript] = useState('');
   const [voiceResponse, setVoiceResponse] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [clientId] = useState(() => getOrCreateClientId());
   const stopRef = useRef<(() => void) | null>(null);
   const abortedRef = useRef(false);
 
   const isSupported = isSpeechRecognitionSupported();
+  const askEcho = useAction(api.ai.askEcho);
+  const synthesizeSpeech = useAction(api.ai.synthesizeSpeech);
 
   const stopVoiceChat = useCallback(() => {
     abortedRef.current = true;
@@ -51,7 +57,11 @@ export function useVoiceChat(
 
       // Step 2: Process with Gemini
       setVoiceState('processing');
-      const aiResponse = await askEcho(spokenText, chatHistory);
+      const aiResponse = await askEcho({
+        query: spokenText,
+        history: chatHistory,
+        clientId,
+      });
       if (abortedRef.current) return;
 
       setVoiceResponse(aiResponse);
@@ -59,7 +69,17 @@ export function useVoiceChat(
 
       // Step 3: Speak response
       setVoiceState('speaking');
-      await speak(aiResponse);
+      const generatedAudio = await synthesizeSpeech({
+        text: aiResponse,
+        clientId,
+      });
+
+      if (generatedAudio) {
+        await playGeneratedAudio(generatedAudio.audioBase64, generatedAudio.mimeType);
+      } else {
+        await speakWithBrowserTTS(aiResponse);
+      }
+
       if (abortedRef.current) return;
 
       setVoiceState('idle');
@@ -70,7 +90,7 @@ export function useVoiceChat(
       setVoiceState('error');
       setTimeout(() => { setVoiceState('idle'); setError(null); }, 3000);
     }
-  }, [voiceState, chatHistory, stopVoiceChat, onExchangeComplete]);
+  }, [askEcho, chatHistory, clientId, onExchangeComplete, stopVoiceChat, synthesizeSpeech, voiceState]);
 
   return { voiceState, transcript, voiceResponse, error, startVoiceChat, stopVoiceChat, isSupported };
 }

@@ -1,21 +1,12 @@
-import { useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSessionHeatmap } from '../contexts/SessionHeatmapContext';
+import { getOrCreateSessionId } from '../utils/clientIdentity';
 
 export const useHeatmapTracking = (pathname: string) => {
   const { addInteraction, addClick } = useSessionHeatmap();
   
   // Session ID for tracking (persists across page loads within session)
-  const sessionId = useRef(
-    typeof window !== 'undefined' 
-      ? sessionStorage.getItem('echo_session') || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      : 'server'
-  );
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('echo_session', sessionId.current);
-    }
-  }, []);
+  const [sessionId] = useState(() => getOrCreateSessionId());
 
   // Track mouse movements (heavily throttled for performance)
   useEffect(() => {
@@ -41,7 +32,7 @@ export const useHeatmapTracking = (pathname: string) => {
       lastY = y;
 
       addInteraction({
-        sessionId: sessionId.current,
+        sessionId: sessionId,
         path: pathname,
         type: 'move',
         x,
@@ -54,7 +45,7 @@ export const useHeatmapTracking = (pathname: string) => {
       const x = (e.clientX / window.innerWidth) * 100;
       const y = (e.clientY / window.innerHeight) * 100;
 
-      addClick(sessionId.current, pathname, x, y);
+      addClick(sessionId, pathname, x, y);
     };
 
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
@@ -64,9 +55,9 @@ export const useHeatmapTracking = (pathname: string) => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('click', handleClick);
     };
-  }, [pathname, addInteraction, addClick]);
+  }, [pathname, addInteraction, addClick, sessionId]);
 
-  return { sessionId: sessionId.current };
+  return { sessionId: sessionId };
 };
 
 export default useHeatmapTracking;

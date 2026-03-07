@@ -12,6 +12,13 @@ const Home = () => {
   const titleRef = useRef<HTMLHeadingElement>(null);
   
   const startSequence = () => {
+    if (sessionStorage.getItem('system_booted') === 'true') {
+      setIsInitializing(true);
+      setLoadStep(10);
+      setTimeout(() => navigate('/vault'), 600);
+      return;
+    }
+
     setIsInitializing(true);
     // Exponential acceleration: 400ms down to 20ms
     const timings = [400, 300, 200, 150, 100, 80, 60, 40, 30, 20];
@@ -22,6 +29,7 @@ const Home = () => {
       setTimeout(() => {
         setLoadStep(index + 1);
         if (index === timings.length - 1) {
+          sessionStorage.setItem('system_booted', 'true');
           setTimeout(() => navigate('/vault'), 500);
         }
       }, totalTime);

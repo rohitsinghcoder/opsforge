@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// ─── Browser Speech Recognition type shim ───
 declare global {
   interface Window {
     SpeechRecognition: any;
@@ -13,14 +12,6 @@ export function isSpeechRecognitionSupported(): boolean {
     !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
 
-export function isElevenLabsConfigured(): boolean {
-  return !!import.meta.env.VITE_ELEVENLABS_API_KEY;
-}
-
-/**
- * Listen for speech via Web Speech API.
- * Returns a promise resolving to the transcript, and a stop() handle.
- */
 export function listenForSpeech(
   onInterim?: (text: string) => void
 ): { promise: Promise<string>; stop: () => void } {
@@ -82,52 +73,21 @@ export function listenForSpeech(
   };
 }
 
-// ─── Audio playback ───
 let currentAudio: HTMLAudioElement | null = null;
 
-/**
- * Speak text — tries ElevenLabs first, falls back to browser TTS.
- */
-export async function speak(text: string): Promise<void> {
-  if (isElevenLabsConfigured()) {
-    try {
-      await speakWithElevenLabs(text);
-      return;
-    } catch (err) {
-      console.warn('ElevenLabs failed, falling back to browser TTS:', err);
-    }
-  }
-  await speakWithBrowserTTS(text);
-}
-
-async function speakWithElevenLabs(text: string): Promise<void> {
-  const apiKey = import.meta.env.VITE_ELEVENLABS_API_KEY;
-  const voiceId = 'JBFqnCBsd6RMkjVDRZzb'; // "George" — deep, authoritative
-
+export async function playGeneratedAudio(
+  audioBase64: string,
+  mimeType = 'audio/mpeg'
+): Promise<void> {
   stopSpeaking();
 
-  const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'xi-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        text,
-        model_id: 'eleven_multilingual_v2',
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-      }),
-    }
-  );
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => 'Unknown error');
-    throw new Error(`ElevenLabs error (${res.status}): ${body}`);
+  const binary = atob(audioBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
   }
 
-  const blob = await res.blob();
+  const blob = new Blob([bytes], { type: mimeType });
   const url = URL.createObjectURL(blob);
 
   return new Promise<void>((resolve, reject) => {
@@ -139,7 +99,7 @@ async function speakWithElevenLabs(text: string): Promise<void> {
   });
 }
 
-function speakWithBrowserTTS(text: string): Promise<void> {
+export function speakWithBrowserTTS(text: string): Promise<void> {
   return new Promise((resolve) => {
     if (!('speechSynthesis' in window)) { resolve(); return; }
     const u = new SpeechSynthesisUtterance(text);

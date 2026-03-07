@@ -1,15 +1,22 @@
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Link2, Rocket, Loader2 } from 'lucide-react';
 
+type ProjectVisibility = 'public' | 'unlisted' | 'private';
+
 interface Props {
-  visibility: string;
-  onVisibilityChange: (visibility: string) => void;
+  visibility: ProjectVisibility;
+  onVisibilityChange: (visibility: ProjectVisibility) => void;
   onCompile: () => void;
   isCompiling: boolean;
   isValid: boolean;
 }
 
-const VISIBILITY_OPTIONS = [
+const VISIBILITY_OPTIONS: {
+  value: ProjectVisibility;
+  label: string;
+  icon: typeof Eye;
+  desc: string;
+}[] = [
   { value: 'public', label: 'Public', icon: Eye, desc: 'Anyone can view' },
   { value: 'unlisted', label: 'Unlisted', icon: Link2, desc: 'Only with link' },
   { value: 'private', label: 'Private', icon: EyeOff, desc: 'Only you' },

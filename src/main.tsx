@@ -2,8 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { ClerkProvider } from '@clerk/clerk-react'
-import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ClerkProvider, useAuth } from '@clerk/clerk-react'
+import { ConvexReactClient } from "convex/react";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+import ErrorBoundary from './components/layout/ErrorBoundary';
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 const CONVEX_URL = import.meta.env.VITE_CONVEX_URL
@@ -20,11 +22,12 @@ const convex = new ConvexReactClient(CONVEX_URL as string);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ConvexProvider client={convex}>
-      <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
-        <App />
-      </ClerkProvider>
-    </ConvexProvider>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
+      </ConvexProviderWithClerk>
+    </ClerkProvider>
   </StrictMode>,
 )
-

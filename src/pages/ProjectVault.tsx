@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Cpu, Activity, ArrowUpRight, Plus } from 'lucide-react';
 import { useQuery } from 'convex/react';
@@ -8,7 +8,6 @@ import { useBlueprintContext } from '../contexts/BlueprintContext';
 import type { ConvexProject } from '../data/projects';
 
 const ProjectVault = () => {
-  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   const mouseRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -35,23 +34,25 @@ const ProjectVault = () => {
     };
 
     const autoScroll = () => {
-      if (!container || explorerProject) return; // Stop scroll when explorer is open
+      if (!container || explorerProject) return;
       
-      const { x } = mouseRef.current;
-      const edgeSize = window.innerWidth * 0.12;
-      const speed = 25;
+      if (!document.hidden) {
+        const { x } = mouseRef.current;
+        const edgeSize = window.innerWidth * 0.12;
+        const speed = 25;
 
-      if (x > window.innerWidth - edgeSize) {
-        const intensity = (x - (window.innerWidth - edgeSize)) / edgeSize;
-        container.scrollLeft += speed * Math.pow(intensity, 2);
-      } else if (x < edgeSize) {
-        const intensity = (edgeSize - x) / edgeSize;
-        container.scrollLeft -= speed * Math.pow(intensity, 2);
-      }
-      
-      const maxScroll = container.scrollWidth - container.clientWidth;
-      if (maxScroll > 0) {
-        setScrollProgress(container.scrollLeft / maxScroll);
+        if (x > window.innerWidth - edgeSize) {
+          const intensity = (x - (window.innerWidth - edgeSize)) / edgeSize;
+          container.scrollLeft += speed * Math.pow(intensity, 2);
+        } else if (x < edgeSize) {
+          const intensity = (edgeSize - x) / edgeSize;
+          container.scrollLeft -= speed * Math.pow(intensity, 2);
+        }
+        
+        const maxScroll = container.scrollWidth - container.clientWidth;
+        if (maxScroll > 0) {
+          setScrollProgress(container.scrollLeft / maxScroll);
+        }
       }
       
       animationFrameId = requestAnimationFrame(autoScroll);
@@ -65,15 +66,32 @@ const ProjectVault = () => {
       }
     };
 
+    // Touch support
+    let touchStartX = 0;
+    let touchScrollLeft = 0;
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX = e.touches[0].clientX;
+      touchScrollLeft = container?.scrollLeft || 0;
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!container) return;
+      const dx = touchStartX - e.touches[0].clientX;
+      container.scrollLeft = touchScrollLeft + dx;
+    };
+
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseleave', handleMouseLeave);
     container?.addEventListener('scroll', handleScroll);
+    container?.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container?.addEventListener('touchmove', handleTouchMove, { passive: true });
     animationFrameId = requestAnimationFrame(autoScroll);
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseleave', handleMouseLeave);
       container?.removeEventListener('scroll', handleScroll);
+      container?.removeEventListener('touchstart', handleTouchStart);
+      container?.removeEventListener('touchmove', handleTouchMove);
       cancelAnimationFrame(animationFrameId);
     };
   }, [explorerProject, projects]);
@@ -100,15 +118,12 @@ const ProjectVault = () => {
         </motion.h1>
       </div>
 
-      {/* Navigation HUD */}
-      <nav className="fixed top-0 w-full z-50 p-10 flex justify-between items-center mix-blend-difference">
-        <button onClick={() => navigate('/')} className="font-mono text-xs tracking-[0.5em] uppercase hover:text-accent transition-colors">
-          [ Back_To_Core ]
-        </button>
+      {/* Scroll Hint */}
+      <div className="fixed top-28 md:top-32 w-full z-40 flex justify-center pointer-events-none">
         <div className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">
           Push_Edges_To_Scroll_Fast
         </div>
-      </nav>
+      </div>
 
       {/* Horizontal Scroll Area */}
       <div 
@@ -141,7 +156,7 @@ const ProjectVault = () => {
                 transition={{ type: "spring", stiffness: 100, damping: 25 }}
                 className="w-full h-full"
               >
-                <img src={project.image} alt="" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 opacity-40 group-hover:opacity-100" />
+                <img src={project.image} alt={project.title} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 opacity-40 group-hover:opacity-100" />
               </motion.div>
 
               {/* Overlay Data */}
@@ -203,7 +218,7 @@ const ProjectVault = () => {
                     <div className="w-2.5 h-2.5 rounded-full bg-accent" />
                   </div>
                   <span className="font-mono text-[10px] text-zinc-400 uppercase tracking-widest ml-4">
-                    Directory: root/projects/{explorerProject.title.toLowerCase().replace(' ', '_')}
+                    Directory: root/projects/{explorerProject.title.toLowerCase().trim().replace(/\s+/g, '_')}
                   </span>
                 </div>
                 <button onClick={() => setExplorerProject(null)} className="text-zinc-500 hover:text-white transition-colors">
@@ -223,7 +238,7 @@ const ProjectVault = () => {
                     ].map(file => (
                       <button 
                         key={file.id}
-                        onClick={() => setActiveTab(file.id as any)}
+                        onClick={() => setActiveTab(file.id as "stack" | "palette" | "data")}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${activeTab === file.id ? 'bg-accent/10 text-accent' : 'text-zinc-500 hover:bg-white/5'}`}
                       >
                         <file.icon size={14} />

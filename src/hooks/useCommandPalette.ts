@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from 'convex/react';
+import { useAction, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
-import { askEcho } from '../services/ai';
+import { getOrCreateClientId } from '../utils/clientIdentity';
 
 const commands = ['/home', '/vault', '/works', '/archive', '/contact', '/github', '/ideas', '/builder', '/playground', '/blueprint', '/ask', '/override'];
+
+interface ChatMessage {
+  role: 'user' | 'model';
+  parts: { text: string }[];
+}
 
 interface UseCommandPaletteProps {
   blueprint: boolean;
@@ -19,9 +24,11 @@ export const useCommandPalette = ({ blueprint, setBlueprint, onBreach }: UseComm
   const [suggestionIndex, setSuggestionIndex] = useState(-1);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [clientId] = useState(() => getOrCreateClientId());
 
   const logEvent = useMutation(api.logs.logEvent);
+  const askEcho = useAction(api.ai.askEcho);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -83,19 +90,23 @@ export const useCommandPalette = ({ blueprint, setBlueprint, onBreach }: UseComm
       });
 
       try {
-        const response = await askEcho(args, chatHistory);
+        const response = await askEcho({
+          query: args,
+          history: chatHistory,
+          clientId,
+        });
         setAiResponse(response);
         setChatHistory(prev => [...prev, 
-          { role: "user", parts: [{ text: args }] },
-          { role: "assistant", parts: [{ text: response }] }
+          { role: "user" as const, parts: [{ text: args }] },
+          { role: "model" as const, parts: [{ text: response }] }
         ].slice(-20));
       } catch (error) {
         console.error("AI_COMMAND_ERROR:", error);
         const errorMsg = "SYSTEM_FAILURE: Neural link disrupted. Check console logs.";
         setAiResponse(errorMsg);
         setChatHistory(prev => [...prev,
-          { role: "user", parts: [{ text: args }] },
-          { role: "assistant", parts: [{ text: errorMsg }] }
+          { role: "user" as const, parts: [{ text: args }] },
+          { role: "model" as const, parts: [{ text: errorMsg }] }
         ].slice(-20));
       } finally {
         setIsAiLoading(false);
@@ -125,7 +136,7 @@ export const useCommandPalette = ({ blueprint, setBlueprint, onBreach }: UseComm
       setIsCommandOpen(false);
       setAiResponse(null);
     }
-  }, [commandInput, navigate, blueprint, setBlueprint, chatHistory, logEvent, onBreach]);
+  }, [askEcho, chatHistory, clientId, commandInput, logEvent, navigate, blueprint, onBreach, setBlueprint]);
 
   const clearChatHistory = useCallback(() => {
     setChatHistory([]);
@@ -134,8 +145,8 @@ export const useCommandPalette = ({ blueprint, setBlueprint, onBreach }: UseComm
 
   const addToChatHistory = useCallback((userText: string, aiResponse: string) => {
     setChatHistory(prev => [...prev,
-      { role: "user", parts: [{ text: userText }] },
-      { role: "assistant", parts: [{ text: aiResponse }] }
+      { role: "user" as const, parts: [{ text: userText }] },
+      { role: "model" as const, parts: [{ text: aiResponse }] }
     ].slice(-20));
   }, []);
 

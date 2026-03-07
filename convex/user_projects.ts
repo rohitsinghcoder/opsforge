@@ -1,5 +1,12 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { ensureCurrentUser, requireIdentity } from "./lib/auth";
+
+const visibilityValidator = v.union(
+  v.literal("public"),
+  v.literal("unlisted"),
+  v.literal("private")
+);
 
 // Generate a unique share slug
 function generateSlug(): string {
@@ -11,10 +18,24 @@ function generateSlug(): string {
   return slug;
 }
 
+function validateOptionalUrl(url: string | undefined, fieldName: string): void {
+  if (!url) return;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`${fieldName} must be a valid URL`);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${fieldName} must use http or https`);
+  }
+}
+
 // Create a new user project
 export const create = mutation({
   args: {
-    clerkId: v.string(),
     title: v.string(),
     subtitle: v.optional(v.string()),
     category: v.string(),
@@ -27,18 +48,12 @@ export const create = mutation({
     role: v.optional(v.string()),
     liveUrl: v.optional(v.string()),
     githubUrl: v.optional(v.string()),
-    visibility: v.string(),
+    visibility: visibilityValidator,
   },
   handler: async (ctx, args) => {
-    // Get the user from Clerk ID
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
-      .first();
-
-    if (!user) {
-      throw new Error("User not found");
-    }
+    validateOptionalUrl(args.liveUrl, "liveUrl");
+    validateOptionalUrl(args.githubUrl, "githubUrl");
+    const user = await ensureCurrentUser(ctx);
 
     const now = Date.now();
 
@@ -60,7 +75,7 @@ export const create = mutation({
 
     const projectId = await ctx.db.insert("user_projects", {
       userId: user._id,
-      clerkId: args.clerkId,
+      clerkId: user.clerkId,
       title: args.title,
       subtitle: args.subtitle,
       category: args.category,
@@ -88,7 +103,6 @@ export const create = mutation({
 export const update = mutation({
   args: {
     projectId: v.id("user_projects"),
-    clerkId: v.string(),
     title: v.optional(v.string()),
     subtitle: v.optional(v.string()),
     category: v.optional(v.string()),
@@ -101,16 +115,24 @@ export const update = mutation({
     role: v.optional(v.string()),
     liveUrl: v.optional(v.string()),
     githubUrl: v.optional(v.string()),
-    visibility: v.optional(v.string()),
+    visibility: v.optional(visibilityValidator),
   },
   handler: async (ctx, args) => {
+    if (args.liveUrl !== undefined) {
+      validateOptionalUrl(args.liveUrl, "liveUrl");
+    }
+    if (args.githubUrl !== undefined) {
+      validateOptionalUrl(args.githubUrl, "githubUrl");
+    }
+
     const project = await ctx.db.get(args.projectId);
     
     if (!project) {
       throw new Error("Project not found");
     }
-    
-    if (project.clerkId !== args.clerkId) {
+
+    const identity = await requireIdentity(ctx);
+    if (project.clerkId !== identity.subject) {
       throw new Error("Unauthorized");
     }
 
@@ -139,7 +161,6 @@ export const update = mutation({
 export const remove = mutation({
   args: {
     projectId: v.id("user_projects"),
-    clerkId: v.string(),
   },
   handler: async (ctx, args) => {
     const project = await ctx.db.get(args.projectId);
@@ -147,8 +168,9 @@ export const remove = mutation({
     if (!project) {
       throw new Error("Project not found");
     }
-    
-    if (project.clerkId !== args.clerkId) {
+
+    const identity = await requireIdentity(ctx);
+    if (project.clerkId !== identity.subject) {
       throw new Error("Unauthorized");
     }
 
@@ -159,13 +181,12 @@ export const remove = mutation({
 
 // Get all projects for a user
 export const getMyProjects = query({
-  args: {
-    clerkId: v.string(),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const identity = await requireIdentity(ctx);
     return await ctx.db
       .query("user_projects")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .order("desc")
       .collect();
   },
@@ -177,7 +198,15 @@ export const getById = query({
     projectId: v.id("user_projects"),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.projectId);
+    const project = await ctx.db.get(args.projectId);
+    if (!project) return null;
+
+    const identity = await requireIdentity(ctx);
+    if (project.clerkId !== identity.subject) {
+      throw new Error("Unauthorized");
+    }
+
+    return project;
   },
 });
 
@@ -187,10 +216,15 @@ export const getBySlug = query({
     slug: v.string(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const project = await ctx.db
       .query("user_projects")
       .withIndex("by_slug", (q) => q.eq("shareSlug", args.slug))
       .first();
+
+    if (!project) return null;
+    if (project.visibility === "private") return null;
+
+    return project;
   },
 });
 
@@ -205,7 +239,7 @@ export const incrementViews = mutation({
       .withIndex("by_slug", (q) => q.eq("shareSlug", args.slug))
       .first();
 
-    if (project) {
+    if (project && project.visibility !== "private") {
       await ctx.db.patch(project._id, {
         viewCount: project.viewCount + 1,
       });

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 
 interface Interaction {
@@ -32,13 +33,15 @@ const createEmptyGrid = (): number[][] =>
 
 const SessionHeatmapContext = createContext<SessionHeatmapContextType | null>(null);
 
-export const useSessionHeatmap = () => {
+const useSessionHeatmap = () => {
   const context = useContext(SessionHeatmapContext);
   if (!context) {
     throw new Error('useSessionHeatmap must be used within a SessionHeatmapProvider');
   }
   return context;
 };
+
+export { useSessionHeatmap };
 
 interface SessionHeatmapProviderProps {
   children: ReactNode;

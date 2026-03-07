@@ -91,7 +91,7 @@ body {
   height: 100%;
   content: "";
   opacity: 0.05;
-  z-index: 9999;
+  z-index: 50;
   pointer-events: none;
   background-image: url("/noise.svg");
 }
@@ -129,10 +129,6 @@ body {
 
 .magnetic-btn {
   @apply flex items-center justify-center rounded-full bg-accent text-black font-bold transition-transform duration-300 active:scale-95;
-}
-
-@theme {
-  --color-accent: #c4ff0e;
 }
 
 @layer utilities {

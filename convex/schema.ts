@@ -1,6 +1,12 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+const visibilityValidator = v.union(
+  v.literal("public"),
+  v.literal("unlisted"),
+  v.literal("private")
+);
+
 export default defineSchema({
   // Projects table - stores portfolio projects
   projects: defineTable({
@@ -105,7 +111,7 @@ export default defineSchema({
     githubUrl: v.optional(v.string()),
     
     // Visibility & sharing
-    visibility: v.string(), // 'public', 'private', 'unlisted'
+    visibility: visibilityValidator,
     shareSlug: v.string(),
     
     // Analytics
@@ -119,5 +125,13 @@ export default defineSchema({
     .index("by_clerkId", ["clerkId"])
     .index("by_slug", ["shareSlug"])
     .index("by_visibility", ["visibility"]),
+
+  api_rate_limits: defineTable({
+    identifier: v.string(),
+    scope: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+    updatedAt: v.number(),
+  }).index("by_identifier_scope_window", ["identifier", "scope", "windowStart"]),
 });
 

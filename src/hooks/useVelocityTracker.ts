@@ -9,6 +9,8 @@ export const useVelocityTracker = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
+      if (document.hidden) return; // Pause calculation when tab is hidden
+
       // Lerp (smooth) the velocity for a "usage" feel
       // It climbs fast but drops slightly slower
       const lerpFactor = targetVelocity.current > smoothedVelocity.current ? 0.4 : 0.15;

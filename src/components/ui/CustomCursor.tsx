@@ -7,7 +7,7 @@ const CustomCursor = () => {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => setMousePos({ x: e.clientX, y: e.clientY });
-    const handleMouseOver = (e: any) => {
+    const handleMouseOver = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'BUTTON' || target.tagName === 'A' || target.closest('.hover-trigger')) {
         setIsHovering(true);

@@ -1,11 +1,23 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAction } from 'convex/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, Loader2, ChevronRight, ChevronDown, 
   Folder, FileCode, ArrowRight, RefreshCw, Zap, X, Plus
 } from 'lucide-react';
-import { generateProjectIdea, type ProjectIdea } from '../services/ideaGenerator';
+import { api } from '../../convex/_generated/api';
+import { getOrCreateClientId } from '../utils/clientIdentity';
+
+interface ProjectIdea {
+  title: string;
+  description: string;
+  stack: string[];
+  files: string[];
+  steps: string[];
+  category: string;
+  complexity: string;
+}
 
 const PRESET_SKILLS = [
   'React', 'TypeScript', 'JavaScript', 'Next.js', 'Vue', 'Angular', 'Svelte',
@@ -39,6 +51,8 @@ const IdeaGenerator = () => {
   const [result, setResult] = useState<ProjectIdea | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedFiles, setExpandedFiles] = useState(true);
+  const [clientId] = useState(() => getOrCreateClientId());
+  const generateProjectIdea = useAction(api.ai.generateProjectIdea);
 
   const addSkill = (skill: string) => {
     if (!selectedSkills.includes(skill)) {
@@ -72,6 +86,7 @@ const IdeaGenerator = () => {
       skills: selectedSkills,
       complexity,
       category: category || undefined,
+      clientId,
     });
 
     if (typeof response === 'string') {

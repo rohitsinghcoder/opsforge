@@ -13,6 +13,8 @@ import BuilderStepVisuals from '../components/builder/BuilderStepVisuals';
 import BuilderStepDeploy from '../components/builder/BuilderStepDeploy';
 import PreviewCard from '../components/builder/PreviewCard';
 
+type ProjectVisibility = 'public' | 'unlisted' | 'private';
+
 interface ProjectFormData {
   title: string;
   clientName: string;
@@ -24,7 +26,7 @@ interface ProjectFormData {
   role: string;
   liveUrl: string;
   githubUrl: string;
-  visibility: string;
+  visibility: ProjectVisibility;
 }
 
 const STEPS = [
@@ -44,6 +46,7 @@ const ProjectBuilder = () => {
   const [isCompiling, setIsCompiling] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [shareSlug, setShareSlug] = useState<string | null>(null);
+  const [compileError, setCompileError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<ProjectFormData>({
     title: '',
@@ -70,6 +73,7 @@ const ProjectBuilder = () => {
   // Load existing project data in edit mode
   useEffect(() => {
     if (existingProject) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({
         title: existingProject.title,
         clientName: existingProject.clientName || '',
@@ -92,6 +96,7 @@ const ProjectBuilder = () => {
     if (prefillData && !isEditMode) {
       try {
         const parsed = JSON.parse(prefillData);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setFormData(prev => ({
           ...prev,
           title: parsed.title || prev.title,
@@ -136,12 +141,12 @@ const ProjectBuilder = () => {
     if (!user || !isFormValid) return;
 
     setIsCompiling(true);
+    setCompileError(null);
 
     try {
       if (isEditMode && id) {
         await updateProject({
           projectId: id as Id<"user_projects">,
-          clerkId: user.id,
           title: formData.title,
           subtitle: undefined,
           category: formData.category,
@@ -158,7 +163,6 @@ const ProjectBuilder = () => {
         setShareSlug(existingProject?.shareSlug || null);
       } else {
         const result = await createProject({
-          clerkId: user.id,
           title: formData.title,
           subtitle: undefined,
           category: formData.category,
@@ -185,6 +189,7 @@ const ProjectBuilder = () => {
       }, 2500);
     } catch (error) {
       console.error('Failed to save project:', error);
+      setCompileError(error instanceof Error ? error.message : 'Failed to compile project. Please try again.');
       setIsCompiling(false);
     }
   };
@@ -239,6 +244,11 @@ const ProjectBuilder = () => {
           <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest mt-2">
             Echo_Terminal: Project_Compiler v2.0
           </p>
+          {compileError && (
+            <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+              <p className="font-mono text-sm text-red-400">{compileError}</p>
+            </div>
+          )}
         </div>
 
         {/* Progress Steps */}
