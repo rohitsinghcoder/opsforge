@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAction } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import {
@@ -23,6 +23,7 @@ export function useVoiceChat(
   const [clientId] = useState(() => getOrCreateClientId());
   const stopRef = useRef<(() => void) | null>(null);
   const abortedRef = useRef(false);
+  const resetTimerRef = useRef<number | null>(null);
 
   const isSupported = isSpeechRecognitionSupported();
   const askEcho = useAction(api.ai.askEcho);
@@ -31,9 +32,15 @@ export function useVoiceChat(
   const stopVoiceChat = useCallback(() => {
     abortedRef.current = true;
     if (stopRef.current) { stopRef.current(); stopRef.current = null; }
+    if (resetTimerRef.current !== null) {
+      window.clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
     stopSpeaking();
     setVoiceState('idle');
   }, []);
+
+  useEffect(() => stopVoiceChat, [stopVoiceChat]);
 
   const startVoiceChat = useCallback(async () => {
     // Toggle off if already active
@@ -74,6 +81,8 @@ export function useVoiceChat(
         clientId,
       });
 
+      if (abortedRef.current) return;
+
       if (generatedAudio) {
         await playGeneratedAudio(generatedAudio.audioBase64, generatedAudio.mimeType);
       } else {
@@ -88,7 +97,11 @@ export function useVoiceChat(
       console.error('Voice chat error:', err);
       setError(err instanceof Error ? err.message : 'Voice chat failed');
       setVoiceState('error');
-      setTimeout(() => { setVoiceState('idle'); setError(null); }, 3000);
+      resetTimerRef.current = window.setTimeout(() => {
+        setVoiceState('idle');
+        setError(null);
+        resetTimerRef.current = null;
+      }, 3000);
     }
   }, [askEcho, chatHistory, clientId, onExchangeComplete, stopVoiceChat, synthesizeSpeech, voiceState]);
 

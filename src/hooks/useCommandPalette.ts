@@ -4,7 +4,21 @@ import { useAction, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { getOrCreateClientId } from '../utils/clientIdentity';
 
-const commands = ['/home', '/vault', '/works', '/archive', '/contact', '/github', '/ideas', '/builder', '/playground', '/blueprint', '/ask', '/override'];
+const commands = ['/home', '/vault', '/works', '/archive', '/contact', '/github', '/ideas', '/builder', '/playground', '/navigate', '/forge', '/blueprint', '/ask', '/override'];
+
+const commandRoutes: Record<string, string> = {
+  '/home': '/',
+  '/vault': '/vault',
+  '/works': '/works',
+  '/archive': '/archive',
+  '/contact': '/contact',
+  '/github': '/my-projects',
+  '/ideas': '/ideas',
+  '/builder': '/builder',
+  '/playground': '/playground',
+  '/navigate': '/navigate',
+  '/forge': '/forge',
+};
 
 interface ChatMessage {
   role: 'user' | 'model';
@@ -83,10 +97,11 @@ export const useCommandPalette = ({ blueprint, setBlueprint, onBreach }: UseComm
       setAiResponse(null);
       
       // Log AI Query to Convex
-      logEvent({
+      void logEvent({
         type: "AI_QUERY",
         user: "GUEST_TERMINAL",
-        content: `Query: ${args.substring(0, 100)}${args.length > 100 ? '...' : ''}`
+        content: `Query: ${args.substring(0, 100)}${args.length > 100 ? '...' : ''}`,
+        clientId,
       });
 
       try {
@@ -115,24 +130,19 @@ export const useCommandPalette = ({ blueprint, setBlueprint, onBreach }: UseComm
       return;
     }
     
-    const isNavCommand = ['/home', '/vault', '/works', '/archive', '/contact', '/github', '/ideas', '/builder', '/playground'].includes(cmd);
+    const targetRoute = commandRoutes[cmd];
     
-    if (cmd === '/home') navigate('/');
-    if (cmd === '/vault') navigate('/vault');
-    if (cmd === '/works') navigate('/works');
-    if (cmd === '/archive') navigate('/archive');
-    if (cmd === '/contact') navigate('/contact');
-    if (cmd === '/github') navigate('/my-projects');
-    if (cmd === '/ideas') navigate('/ideas');
-    if (cmd === '/builder') navigate('/builder');
-    if (cmd === '/playground') navigate('/playground');
-    if (cmd === '/blueprint') setBlueprint(!blueprint);
+    if (targetRoute) {
+      navigate(targetRoute);
+    } else if (cmd === '/blueprint') {
+      setBlueprint(!blueprint);
+    }
     
     setCommandInput("");
     setSuggestionIndex(-1);
     
     // Only close palette and clear AI for navigation commands, not /ask
-    if (isNavCommand || cmd === '/blueprint') {
+    if (targetRoute || cmd === '/blueprint') {
       setIsCommandOpen(false);
       setAiResponse(null);
     }

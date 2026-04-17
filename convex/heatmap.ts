@@ -1,7 +1,20 @@
 import { query, mutation } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { requireAdmin } from "./lib/auth";
 
-// Store a batch of interactions (for efficiency)
+const MAX_BATCH_SIZE = 50;
+const MAX_INTERACTIONS_PER_SESSION = 500;
+
+async function getSessionInteractionCount(ctx: MutationCtx, sessionId: string) {
+  const entries = await ctx.db
+    .query("interactions")
+    .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+    .take(MAX_INTERACTIONS_PER_SESSION + 1);
+
+  return entries.length;
+}
+
 export const storeBatch = mutation({
   args: {
     interactions: v.array(
@@ -16,14 +29,37 @@ export const storeBatch = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    for (const interaction of args.interactions) {
+    if (args.interactions.length > MAX_BATCH_SIZE) {
+      throw new Error(`Batch size exceeds maximum of ${MAX_BATCH_SIZE}`);
+    }
+
+    const sessionId = args.interactions[0]?.sessionId;
+    if (!sessionId) {
+      return { stored: 0 };
+    }
+
+    const sessionCount = await getSessionInteractionCount(ctx, sessionId);
+    const remainingSlots = Math.max(MAX_INTERACTIONS_PER_SESSION - sessionCount, 0);
+
+    if (remainingSlots === 0) {
+      return { stored: 0, reason: "session_limit_reached" };
+    }
+
+    const interactionsToStore = args.interactions.slice(0, remainingSlots);
+
+    for (const interaction of interactionsToStore) {
       await ctx.db.insert("interactions", interaction);
     }
-    return { stored: args.interactions.length };
+    return {
+      stored: interactionsToStore.length,
+      reason:
+        interactionsToStore.length < args.interactions.length
+          ? "session_limit_reached"
+          : undefined,
+    };
   },
 });
 
-// Store a single interaction (for clicks)
 export const storeClick = mutation({
   args: {
     sessionId: v.string(),
@@ -32,37 +68,40 @@ export const storeClick = mutation({
     y: v.number(),
   },
   handler: async (ctx, args) => {
+    const sessionCount = await getSessionInteractionCount(ctx, args.sessionId);
+    if (sessionCount >= MAX_INTERACTIONS_PER_SESSION) {
+      return { stored: false, reason: "session_limit_reached" };
+    }
+
     await ctx.db.insert("interactions", {
       ...args,
       type: "click",
       timestamp: Date.now(),
     });
+
+    return { stored: true };
   },
 });
 
-// Get all interactions for a specific path (for heatmap)
 export const getByPath = query({
   args: { path: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("interactions")
       .withIndex("by_path", (q) => q.eq("path", args.path))
-      .collect();
+      .take(500);
   },
 });
 
-// Get aggregated heatmap data for a path (OPTIMIZED)
 export const getHeatmapData = query({
   args: { path: v.string() },
   handler: async (ctx, args) => {
-    // Only get last 500 interactions for performance
     const interactions = await ctx.db
       .query("interactions")
       .withIndex("by_path", (q) => q.eq("path", args.path))
       .order("desc")
       .take(500);
 
-    // Aggregate into grid cells (10x10 grid = 100 cells)
     const gridSize = 10;
     const grid: number[][] = Array(gridSize)
       .fill(null)
@@ -75,9 +114,9 @@ export const getHeatmapData = query({
     for (const interaction of interactions) {
       const gridX = Math.min(Math.floor(interaction.x / gridSize), gridSize - 1);
       const gridY = Math.min(Math.floor(interaction.y / gridSize), gridSize - 1);
-      
+
       if (interaction.type === "click") {
-        grid[gridY][gridX] += 10; // Clicks count more
+        grid[gridY][gridX] += 10;
         clicks.push({ x: interaction.x, y: interaction.y });
         totalClicks++;
       } else {
@@ -86,13 +125,12 @@ export const getHeatmapData = query({
       }
     }
 
-    // Find max value for normalization
     const maxValue = Math.max(...grid.flat(), 1);
 
     return {
       grid,
       maxValue,
-      clicks: clicks.slice(0, 50), // Only return last 50 clicks for rendering
+      clicks: clicks.slice(0, 50),
       totalInteractions: interactions.length,
       totalClicks,
       totalMoves,
@@ -100,34 +138,41 @@ export const getHeatmapData = query({
   },
 });
 
-// Get global heatmap stats
 export const getStats = query({
   handler: async (ctx) => {
-    const allInteractions = await ctx.db.query("interactions").collect();
-    const clicks = allInteractions.filter((i) => i.type === "click");
-    const moves = allInteractions.filter((i) => i.type === "move");
+    await requireAdmin(ctx);
+    const clicks = await ctx.db
+      .query("interactions")
+      .withIndex("by_type", (q) => q.eq("type", "click"))
+      .collect();
 
-    // Get unique paths
-    const paths = [...new Set(allInteractions.map((i) => i.path))];
+    const moves = await ctx.db
+      .query("interactions")
+      .withIndex("by_type", (q) => q.eq("type", "move"))
+      .collect();
+
+    const allPaths = new Set<string>();
+    for (const c of clicks) allPaths.add(c.path);
+    for (const m of moves) allPaths.add(m.path);
 
     return {
-      totalInteractions: allInteractions.length,
+      totalInteractions: clicks.length + moves.length,
       totalClicks: clicks.length,
       totalMoves: moves.length,
-      trackedPages: paths.length,
-      paths,
+      trackedPages: allPaths.size,
+      paths: [...allPaths],
     };
   },
 });
 
-// Clear old interactions (cleanup - keep last 24 hours)
 export const cleanup = mutation({
   handler: async (ctx) => {
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000; // 24 hours ago
+    await requireAdmin(ctx);
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     const oldInteractions = await ctx.db
       .query("interactions")
-      .filter((q) => q.lt(q.field("timestamp"), cutoff))
-      .collect();
+      .withIndex("by_timestamp", (q) => q.lt("timestamp", cutoff))
+      .take(500);
 
     for (const interaction of oldInteractions) {
       await ctx.db.delete(interaction._id);

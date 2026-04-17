@@ -1,36 +1,58 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBlueprintContext } from '../contexts/BlueprintContext';
 import MagneticButton from '../components/ui/MagneticButton';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 const Home = () => {
+  usePageTitle();
   const navigate = useNavigate();
   const { blueprint, setHoverMeta } = useBlueprintContext();
   const [isInitializing, setIsInitializing] = useState(false);
   const [loadStep, setLoadStep] = useState(0);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  
+  const timeoutIdsRef = useRef<number[]>([]);
+
+  const clearTimers = useCallback(() => {
+    timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    timeoutIdsRef.current = [];
+  }, []);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
+
+  const schedule = useCallback((callback: () => void, delay: number) => {
+    const timeoutId = window.setTimeout(() => {
+      timeoutIdsRef.current = timeoutIdsRef.current.filter((id) => id !== timeoutId);
+      callback();
+    }, delay);
+    timeoutIdsRef.current.push(timeoutId);
+  }, []);
+
   const startSequence = () => {
+    if (isInitializing) return;
+
+    clearTimers();
     if (sessionStorage.getItem('system_booted') === 'true') {
       setIsInitializing(true);
       setLoadStep(10);
-      setTimeout(() => navigate('/vault'), 600);
+      schedule(() => navigate('/navigate'), 600);
       return;
     }
 
     setIsInitializing(true);
+    setLoadStep(0);
     // Exponential acceleration: 400ms down to 20ms
     const timings = [400, 300, 200, 150, 100, 80, 60, 40, 30, 20];
     let totalTime = 0;
     
     timings.forEach((time, index) => {
       totalTime += time;
-      setTimeout(() => {
+      schedule(() => {
         setLoadStep(index + 1);
         if (index === timings.length - 1) {
           sessionStorage.setItem('system_booted', 'true');
-          setTimeout(() => navigate('/vault'), 500);
+          schedule(() => navigate('/navigate'), 500);
         }
       }, totalTime);
     });
@@ -131,7 +153,7 @@ const Home = () => {
               We engineer high-fidelity digital interfaces for the next generation of spatial and web ecosystems.
             </p>
             <MagneticButton onClick={startSequence}>
-              <button className="w-40 h-40 magnetic-btn hover:scale-105 transition-transform group relative overflow-hidden">
+              <button className="w-40 h-40 magnetic-btn hover:scale-105 transition-transform group relative overflow-hidden" disabled={isInitializing}>
                 <div className="absolute inset-0 bg-white scale-y-0 group-hover:scale-y-100 origin-bottom transition-transform duration-500" />
                 <div className="relative z-10 group-hover:text-black font-black uppercase tracking-widest text-xs">Explore</div>
               </button>

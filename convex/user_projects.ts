@@ -1,12 +1,21 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { ensureCurrentUser, requireIdentity } from "./lib/auth";
+import { visibilityValidator } from "./lib/validators";
 
-const visibilityValidator = v.union(
-  v.literal("public"),
-  v.literal("unlisted"),
-  v.literal("private")
-);
+const FIELD_LIMITS = {
+  title: 120,
+  subtitle: 160,
+  category: 80,
+  description: 4000,
+  year: 12,
+  clientName: 120,
+  role: 120,
+  stackSize: 12,
+  stackItem: 40,
+} as const;
+
+const HEX_COLOR_REGEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 // Generate a unique share slug
 function generateSlug(): string {
@@ -33,6 +42,75 @@ function validateOptionalUrl(url: string | undefined, fieldName: string): void {
   }
 }
 
+function normalizeRequiredString(value: string, fieldName: string, maxLength: number): string {
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new Error(`${fieldName} is required`);
+  }
+  if (normalized.length > maxLength) {
+    throw new Error(`${fieldName} must be ${maxLength} characters or fewer`);
+  }
+  return normalized;
+}
+
+function normalizeOptionalString(
+  value: string | undefined,
+  fieldName: string,
+  maxLength: number,
+): string | undefined {
+  if (value === undefined) return undefined;
+
+  const normalized = value.trim();
+  if (!normalized) return undefined;
+  if (normalized.length > maxLength) {
+    throw new Error(`${fieldName} must be ${maxLength} characters or fewer`);
+  }
+
+  return normalized;
+}
+
+function normalizeRequiredUrl(url: string, fieldName: string): string {
+  const normalized = normalizeRequiredString(url, fieldName, 2048);
+  validateOptionalUrl(normalized, fieldName);
+  return normalized;
+}
+
+function normalizeOptionalUrl(url: string | undefined, fieldName: string): string | undefined {
+  const normalized = normalizeOptionalString(url, fieldName, 2048);
+  validateOptionalUrl(normalized, fieldName);
+  return normalized;
+}
+
+function normalizeAccentColor(color: string | undefined): string | undefined {
+  if (color === undefined) return undefined;
+
+  const normalized = color.trim();
+  if (!normalized) return undefined;
+  if (!HEX_COLOR_REGEX.test(normalized)) {
+    throw new Error("accentColor must be a valid hex color");
+  }
+
+  return normalized.toUpperCase();
+}
+
+function normalizeStack(stack: string[]): string[] {
+  const normalized = stack
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (normalized.length > FIELD_LIMITS.stackSize) {
+    throw new Error(`stack can contain at most ${FIELD_LIMITS.stackSize} items`);
+  }
+
+  for (const item of normalized) {
+    if (item.length > FIELD_LIMITS.stackItem) {
+      throw new Error(`stack items must be ${FIELD_LIMITS.stackItem} characters or fewer`);
+    }
+  }
+
+  return Array.from(new Set(normalized));
+}
+
 // Create a new user project
 export const create = mutation({
   args: {
@@ -51,9 +129,19 @@ export const create = mutation({
     visibility: visibilityValidator,
   },
   handler: async (ctx, args) => {
-    validateOptionalUrl(args.liveUrl, "liveUrl");
-    validateOptionalUrl(args.githubUrl, "githubUrl");
     const user = await ensureCurrentUser(ctx);
+    const title = normalizeRequiredString(args.title, "title", FIELD_LIMITS.title);
+    const subtitle = normalizeOptionalString(args.subtitle, "subtitle", FIELD_LIMITS.subtitle);
+    const category = normalizeRequiredString(args.category, "category", FIELD_LIMITS.category);
+    const description = normalizeRequiredString(args.description, "description", FIELD_LIMITS.description);
+    const imageUrl = normalizeRequiredUrl(args.imageUrl, "imageUrl");
+    const accentColor = normalizeAccentColor(args.accentColor);
+    const stack = normalizeStack(args.stack);
+    const year = normalizeRequiredString(args.year, "year", FIELD_LIMITS.year);
+    const clientName = normalizeOptionalString(args.clientName, "clientName", FIELD_LIMITS.clientName);
+    const role = normalizeOptionalString(args.role, "role", FIELD_LIMITS.role);
+    const liveUrl = normalizeOptionalUrl(args.liveUrl, "liveUrl");
+    const githubUrl = normalizeOptionalUrl(args.githubUrl, "githubUrl");
 
     const now = Date.now();
 
@@ -76,18 +164,18 @@ export const create = mutation({
     const projectId = await ctx.db.insert("user_projects", {
       userId: user._id,
       clerkId: user.clerkId,
-      title: args.title,
-      subtitle: args.subtitle,
-      category: args.category,
-      description: args.description,
-      imageUrl: args.imageUrl,
-      accentColor: args.accentColor,
-      stack: args.stack,
-      year: args.year,
-      clientName: args.clientName,
-      role: args.role,
-      liveUrl: args.liveUrl,
-      githubUrl: args.githubUrl,
+      title,
+      subtitle,
+      category,
+      description,
+      imageUrl,
+      accentColor,
+      stack,
+      year,
+      clientName,
+      role,
+      liveUrl,
+      githubUrl,
       visibility: args.visibility,
       shareSlug,
       viewCount: 0,
@@ -118,13 +206,6 @@ export const update = mutation({
     visibility: v.optional(visibilityValidator),
   },
   handler: async (ctx, args) => {
-    if (args.liveUrl !== undefined) {
-      validateOptionalUrl(args.liveUrl, "liveUrl");
-    }
-    if (args.githubUrl !== undefined) {
-      validateOptionalUrl(args.githubUrl, "githubUrl");
-    }
-
     const project = await ctx.db.get(args.projectId);
     
     if (!project) {
@@ -138,18 +219,22 @@ export const update = mutation({
 
     const updates: Record<string, unknown> = { updatedAt: Date.now() };
     
-    if (args.title !== undefined) updates.title = args.title;
-    if (args.subtitle !== undefined) updates.subtitle = args.subtitle;
-    if (args.category !== undefined) updates.category = args.category;
-    if (args.description !== undefined) updates.description = args.description;
-    if (args.imageUrl !== undefined) updates.imageUrl = args.imageUrl;
-    if (args.accentColor !== undefined) updates.accentColor = args.accentColor;
-    if (args.stack !== undefined) updates.stack = args.stack;
-    if (args.year !== undefined) updates.year = args.year;
-    if (args.clientName !== undefined) updates.clientName = args.clientName;
-    if (args.role !== undefined) updates.role = args.role;
-    if (args.liveUrl !== undefined) updates.liveUrl = args.liveUrl;
-    if (args.githubUrl !== undefined) updates.githubUrl = args.githubUrl;
+    if (args.title !== undefined) updates.title = normalizeRequiredString(args.title, "title", FIELD_LIMITS.title);
+    if (args.subtitle !== undefined) updates.subtitle = normalizeOptionalString(args.subtitle, "subtitle", FIELD_LIMITS.subtitle);
+    if (args.category !== undefined) updates.category = normalizeRequiredString(args.category, "category", FIELD_LIMITS.category);
+    if (args.description !== undefined) {
+      updates.description = normalizeRequiredString(args.description, "description", FIELD_LIMITS.description);
+    }
+    if (args.imageUrl !== undefined) updates.imageUrl = normalizeRequiredUrl(args.imageUrl, "imageUrl");
+    if (args.accentColor !== undefined) updates.accentColor = normalizeAccentColor(args.accentColor);
+    if (args.stack !== undefined) updates.stack = normalizeStack(args.stack);
+    if (args.year !== undefined) updates.year = normalizeRequiredString(args.year, "year", FIELD_LIMITS.year);
+    if (args.clientName !== undefined) {
+      updates.clientName = normalizeOptionalString(args.clientName, "clientName", FIELD_LIMITS.clientName);
+    }
+    if (args.role !== undefined) updates.role = normalizeOptionalString(args.role, "role", FIELD_LIMITS.role);
+    if (args.liveUrl !== undefined) updates.liveUrl = normalizeOptionalUrl(args.liveUrl, "liveUrl");
+    if (args.githubUrl !== undefined) updates.githubUrl = normalizeOptionalUrl(args.githubUrl, "githubUrl");
     if (args.visibility !== undefined) updates.visibility = args.visibility;
 
     await ctx.db.patch(args.projectId, updates);
@@ -232,6 +317,7 @@ export const getBySlug = query({
 export const incrementViews = mutation({
   args: {
     slug: v.string(),
+    sessionId: v.string(),
   },
   handler: async (ctx, args) => {
     const project = await ctx.db
@@ -239,11 +325,32 @@ export const incrementViews = mutation({
       .withIndex("by_slug", (q) => q.eq("shareSlug", args.slug))
       .first();
 
-    if (project && project.visibility !== "private") {
-      await ctx.db.patch(project._id, {
-        viewCount: project.viewCount + 1,
-      });
+    if (!project || project.visibility === "private") {
+      return { counted: false };
     }
+
+    const existingView = await ctx.db
+      .query("project_view_events")
+      .withIndex("by_slug_session", (q) =>
+        q.eq("shareSlug", args.slug).eq("sessionId", args.sessionId)
+      )
+      .unique();
+
+    if (existingView) {
+      return { counted: false };
+    }
+
+    await ctx.db.insert("project_view_events", {
+      shareSlug: args.slug,
+      sessionId: args.sessionId,
+      viewedAt: Date.now(),
+    });
+
+    await ctx.db.patch(project._id, {
+      viewCount: project.viewCount + 1,
+    });
+
+    return { counted: true };
   },
 });
 

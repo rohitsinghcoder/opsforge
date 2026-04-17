@@ -80,14 +80,8 @@ export async function playGeneratedAudio(
   mimeType = 'audio/mpeg'
 ): Promise<void> {
   stopSpeaking();
-
-  const binary = atob(audioBase64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  const blob = new Blob([bytes], { type: mimeType });
+  const response = await fetch(`data:${mimeType};base64,${audioBase64}`);
+  const blob = await response.blob();
   const url = URL.createObjectURL(blob);
 
   return new Promise<void>((resolve, reject) => {

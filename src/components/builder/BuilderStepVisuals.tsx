@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Image, Link, Github } from 'lucide-react';
 
@@ -13,6 +14,9 @@ interface Props {
 }
 
 const BuilderStepVisuals = ({ data, onChange }: Props) => {
+  const [failedPreviewUrl, setFailedPreviewUrl] = useState<string | null>(null);
+  const hasPreviewError = failedPreviewUrl === data.imageUrl;
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -45,14 +49,21 @@ const BuilderStepVisuals = ({ data, onChange }: Props) => {
           animate={{ opacity: 1, height: 'auto' }}
           className="rounded-xl overflow-hidden border border-white/10"
         >
-          <img
-            src={data.imageUrl}
-            alt="Preview"
-            className="w-full h-32 object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
+          {hasPreviewError ? (
+            <div className="flex h-32 items-center justify-center bg-zinc-950/80">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-zinc-500">
+                Preview_Unavailable
+              </p>
+            </div>
+          ) : (
+            <img
+              src={data.imageUrl}
+              alt="Preview"
+              className="w-full h-32 object-cover"
+              onError={() => setFailedPreviewUrl(data.imageUrl)}
+              onLoad={() => setFailedPreviewUrl((current) => (current === data.imageUrl ? null : current))}
+            />
+          )}
         </motion.div>
       )}
 

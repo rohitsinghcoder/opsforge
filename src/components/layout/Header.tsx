@@ -1,6 +1,8 @@
-import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { EyeOff, Cpu, Plus, Terminal, Battery, BatteryCharging } from 'lucide-react';
+import { EyeOff, Cpu, Plus, Terminal, Battery, BatteryCharging, Orbit } from 'lucide-react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import {
   SignedIn,
   SignedOut,
@@ -9,6 +11,32 @@ import {
 } from "@clerk/clerk-react";
 
 import type { ComponentMeta } from '../../contexts/BlueprintContext';
+
+interface BlueprintLinkProps {
+  to: string;
+  children: ReactNode;
+  setHoverMeta: (val: ComponentMeta | null) => void;
+}
+
+const BlueprintLink = ({ to, children, setHoverMeta }: BlueprintLinkProps) => (
+  <Link
+    to={to}
+    className="hover:text-accent transition-colors"
+    onMouseEnter={(e) => {
+      const bounds = (e.target as HTMLElement).getBoundingClientRect();
+      setHoverMeta({
+        name: `<NavLink to='${to}' />`,
+        bounds: `${Math.round(bounds.width)}px x ${Math.round(bounds.height)}px`,
+        props: "hover:text-accent, tracking-widest",
+        targetX: bounds.left + bounds.width / 2,
+        targetY: bounds.top + bounds.height / 2,
+      });
+    }}
+    onMouseLeave={() => setHoverMeta(null)}
+  >
+    {children}
+  </Link>
+);
 
 interface HeaderProps {
   blueprint: boolean;
@@ -31,6 +59,8 @@ const Header = ({
   setIsCommandOpen,
   setHoverMeta
 }: HeaderProps) => {
+  const menuFocusTrapRef = useFocusTrap(isMenuOpen);
+  const navigateTo = useNavigate();
   return (
     <>
       <nav className="fixed w-full z-50 p-6 md:p-10 mix-blend-difference">
@@ -40,91 +70,11 @@ const Header = ({
           </Link>
           <div className="flex items-center gap-4 md:gap-8">
             <div className="hidden md:flex gap-10 text-xs font-bold uppercase tracking-widest text-white">
-              <Link 
-                to="/works" 
-                className="hover:text-accent transition-colors"
-                onMouseEnter={(e) => {
-                  const bounds = (e.target as HTMLElement).getBoundingClientRect();
-                  setHoverMeta({
-                    name: "<NavLink to='/works' />",
-                    bounds: `${Math.round(bounds.width)}px x ${Math.round(bounds.height)}px`,
-                    props: "hover:text-accent, tracking-widest",
-                    targetX: bounds.left + bounds.width / 2,
-                    targetY: bounds.top + bounds.height / 2
-                  });
-                }}
-                onMouseLeave={() => setHoverMeta(null)}
-              >
-                Works
-              </Link>
-              <Link 
-                to="/archive" 
-                className="hover:text-accent transition-colors"
-                onMouseEnter={(e) => {
-                  const bounds = (e.target as HTMLElement).getBoundingClientRect();
-                  setHoverMeta({
-                    name: "<NavLink to='/archive' />",
-                    bounds: `${Math.round(bounds.width)}px x ${Math.round(bounds.height)}px`,
-                    props: "hover:text-accent, tracking-widest",
-                    targetX: bounds.left + bounds.width / 2,
-                    targetY: bounds.top + bounds.height / 2
-                  });
-                }}
-                onMouseLeave={() => setHoverMeta(null)}
-              >
-                Archive
-              </Link>
-              <Link 
-                to="/ideas" 
-                className="hover:text-accent transition-colors"
-                onMouseEnter={(e) => {
-                  const bounds = (e.target as HTMLElement).getBoundingClientRect();
-                  setHoverMeta({
-                    name: "<NavLink to='/ideas' />",
-                    bounds: `${Math.round(bounds.width)}px x ${Math.round(bounds.height)}px`,
-                    props: "hover:text-accent, tracking-widest",
-                    targetX: bounds.left + bounds.width / 2,
-                    targetY: bounds.top + bounds.height / 2
-                  });
-                }}
-                onMouseLeave={() => setHoverMeta(null)}
-              >
-                Ideas
-              </Link>
-              <Link 
-                to="/playground" 
-                className="hover:text-accent transition-colors"
-                onMouseEnter={(e) => {
-                  const bounds = (e.target as HTMLElement).getBoundingClientRect();
-                  setHoverMeta({
-                    name: "<NavLink to='/playground' />",
-                    bounds: `${Math.round(bounds.width)}px x ${Math.round(bounds.height)}px`,
-                    props: "hover:text-accent, tracking-widest",
-                    targetX: bounds.left + bounds.width / 2,
-                    targetY: bounds.top + bounds.height / 2
-                  });
-                }}
-                onMouseLeave={() => setHoverMeta(null)}
-              >
-                Playground
-              </Link>
-              <Link 
-                to="/contact" 
-                className="hover:text-accent transition-colors"
-                onMouseEnter={(e) => {
-                  const bounds = (e.target as HTMLElement).getBoundingClientRect();
-                  setHoverMeta({
-                    name: "<NavLink to='/contact' />",
-                    bounds: `${Math.round(bounds.width)}px x ${Math.round(bounds.height)}px`,
-                    props: "hover:text-accent, tracking-widest",
-                    targetX: bounds.left + bounds.width / 2,
-                    targetY: bounds.top + bounds.height / 2
-                  });
-                }}
-                onMouseLeave={() => setHoverMeta(null)}
-              >
-                Contact
-              </Link>
+              <BlueprintLink to="/works" setHoverMeta={setHoverMeta}>Works</BlueprintLink>
+              <BlueprintLink to="/archive" setHoverMeta={setHoverMeta}>Archive</BlueprintLink>
+              <BlueprintLink to="/ideas" setHoverMeta={setHoverMeta}>Ideas</BlueprintLink>
+              <BlueprintLink to="/playground" setHoverMeta={setHoverMeta}>Playground</BlueprintLink>
+              <BlueprintLink to="/contact" setHoverMeta={setHoverMeta}>Contact</BlueprintLink>
             </div>
             <button 
               onClick={() => setBlueprint(!blueprint)}
@@ -143,6 +93,25 @@ const Header = ({
               aria-label={blueprint ? 'Disable blueprint mode' : 'Enable blueprint mode'}
             >
               {blueprint ? <Cpu className="animate-spin" size={18} /> : <EyeOff size={18} />}
+            </button>
+
+            <button
+              onClick={() => navigateTo('/navigate')}
+              onMouseEnter={(e) => {
+                const bounds = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setHoverMeta({
+                  name: "<SolarNavigator />",
+                  bounds: `${Math.round(bounds.width)}px x ${Math.round(bounds.height)}px`,
+                  props: `mode: GRAVITY_NAV`,
+                  targetX: bounds.left + bounds.width / 2,
+                  targetY: bounds.top + bounds.height / 2
+                });
+              }}
+              onMouseLeave={() => setHoverMeta(null)}
+              className="hidden md:flex w-10 h-10 md:w-12 md:h-12 rounded-full items-center justify-center border transition-all border-white/20 text-white hover:border-indigo-400 hover:text-indigo-400"
+              aria-label="Open solar system navigation"
+            >
+              <Orbit size={18} />
             </button>
 
             <button 
@@ -214,8 +183,12 @@ const Header = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 200 }}
-            className={`fixed inset-0 z-[100] ${blueprint ? 'blueprint-mode text-white' : 'bg-black text-white'} p-10 flex flex-col justify-center`}
+            className={`fixed inset-0 z-[100] ${blueprint ? 'blueprint-mode text-white' : 'bg-black text-white'} flex flex-col justify-center`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation menu"
           >
+          <div ref={menuFocusTrapRef} className="p-10 flex flex-col justify-center h-full">
             <div className="absolute top-10 right-10 flex items-center gap-4">
               <span className="font-mono text-[8px] text-zinc-500 uppercase tracking-widest">System_Access: 0x8F</span>
               <button 
@@ -234,6 +207,7 @@ const Header = ({
                 { label: "Contact", path: "/contact" },
                 { label: "Ideas", path: "/ideas" },
                 { label: "Playground", path: "/playground" },
+                { label: "Navigate", path: "/navigate" },
                 { label: "Vault", path: "/vault" },
                 { label: "My Projects", path: "/my-projects" },
               ].map((item, idx) => (
@@ -322,6 +296,7 @@ const Header = ({
                 </div>
               </div>
             </div>
+          </div>
           </motion.div>
         )}
       </AnimatePresence>

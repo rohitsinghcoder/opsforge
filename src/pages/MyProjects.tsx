@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { useQuery, useMutation, useAction } from 'convex/react';
 import { Link } from 'react-router-dom';
@@ -8,8 +8,11 @@ import {
   X, Loader2, Plus, Pencil, Trash2, Eye, Share2, Layers
 } from 'lucide-react';
 import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
+import type { Doc, Id } from '../../convex/_generated/dataModel';
 import { getOrCreateClientId } from '../utils/clientIdentity';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { useToast } from '../hooks/useToast';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface GitHubRepo {
   id: number;
@@ -24,7 +27,11 @@ interface GitHubRepo {
   updated_at: string;
 }
 
+type UserProject = Doc<'user_projects'>;
+
 const MyProjects = () => {
+  usePageTitle('My Projects');
+  const { addToast } = useToast();
   const { user, isSignedIn } = useUser();
   const [activeTab, setActiveTab] = useState<'github' | 'creations'>('creations');
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
@@ -48,11 +55,23 @@ const MyProjects = () => {
   
   // Delete confirmation state
   const [deleteConfirmId, setDeleteConfirmId] = useState<Id<"user_projects"> | null>(null);
+  const analysisRequestIdRef = useRef(0);
+  const isMountedRef = useRef(true);
+  const analysisDialogRef = useFocusTrap(Boolean(analysisResult));
+  const deleteDialogRef = useFocusTrap(Boolean(deleteConfirmId));
+  const closeAnalysis = useCallback(() => {
+    setAnalysisResult(null);
+    setAnalysisRepoName(null);
+  }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchGitHubData = async () => {
       if (!isSignedIn || !user) {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
         return;
       }
 
@@ -61,17 +80,23 @@ const MyProjects = () => {
       );
 
       if (!githubAccount) {
-        setError('GitHub account not connected. Please sign in with GitHub to view your projects.');
-        setLoading(false);
+        if (!cancelled) {
+          setError('GitHub account not connected. Please sign in with GitHub to view your public repositories.');
+          setLoading(false);
+        }
         return;
       }
 
       const username = githubAccount.username;
-      setGithubUsername(username || null);
+      if (!cancelled) {
+        setGithubUsername(username || null);
+      }
 
       if (!username) {
-        setError('Could not find GitHub username.');
-        setLoading(false);
+        if (!cancelled) {
+          setError('Could not find GitHub username.');
+          setLoading(false);
+        }
         return;
       }
 
@@ -85,19 +110,56 @@ const MyProjects = () => {
         }
 
         const data = await response.json();
-        setRepos(data);
+        if (!cancelled) {
+          setRepos(data);
+          setError(null);
+        }
       } catch (err) {
-        setError('Failed to load repositories. Please try again later.');
+        if (!cancelled) {
+          setError('Failed to load repositories. Please try again later.');
+        }
         console.error('GitHub API error:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     fetchGitHubData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isSignedIn, user]);
 
-  const handleAnalyze = async (repo: GitHubRepo, e: React.MouseEvent) => {
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      analysisRequestIdRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!analysisResult && !deleteConfirmId) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+
+      if (deleteConfirmId) {
+        setDeleteConfirmId(null);
+        return;
+      }
+
+      setAnalysisResult(null);
+      setAnalysisRepoName(null);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [analysisResult, deleteConfirmId]);
+
+  const handleAnalyze = async (repo: GitHubRepo, e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
     
@@ -107,22 +169,40 @@ const MyProjects = () => {
       return;
     }
 
+    const requestId = analysisRequestIdRef.current + 1;
+    analysisRequestIdRef.current = requestId;
     setAnalyzingRepo(repo.full_name);
     setAnalysisRepoName(repo.name);
     setAnalysisResult(null);
 
-    const result = await analyzeGitHubRepo({
-      repoFullName: repo.full_name,
-      clientId,
-    });
-    
-    if (typeof result === 'string') {
-      setAnalysisResult(result);
-    } else {
-      setAnalysisResult(result.summary);
+    try {
+      const result = await analyzeGitHubRepo({
+        repoFullName: repo.full_name,
+        clientId,
+      });
+
+      if (!isMountedRef.current || analysisRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      if (typeof result === 'string') {
+        setAnalysisResult(result);
+      } else {
+        setAnalysisResult(result.summary);
+      }
+    } catch (err) {
+      if (!isMountedRef.current || analysisRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      console.error('GitHub analysis error:', err);
+      setAnalysisResult('Analysis failed. Please try again in a moment.');
+      addToast('GitHub analysis failed', 'error');
+    } finally {
+      if (isMountedRef.current && analysisRequestIdRef.current === requestId) {
+        setAnalyzingRepo(null);
+      }
     }
-    
-    setAnalyzingRepo(null);
   };
 
   const handleDelete = async (projectId: Id<"user_projects">) => {
@@ -130,18 +210,21 @@ const MyProjects = () => {
     try {
       await deleteProject({ projectId });
       setDeleteConfirmId(null);
+      addToast('Project deleted', 'success');
     } catch (err) {
       console.error('Failed to delete project:', err);
+      addToast('Failed to delete project', 'error');
     }
   };
 
-  const copyShareLink = (slug: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/p/${slug}`);
-  };
-
-  const closeAnalysis = () => {
-    setAnalysisResult(null);
-    setAnalysisRepoName(null);
+  const copyShareLink = async (slug: string) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/p/${slug}`);
+      addToast('Share link copied to clipboard', 'success');
+    } catch (err) {
+      console.error('Failed to copy share link:', err);
+      addToast('Failed to copy share link', 'error');
+    }
   };
 
   const languageColors: Record<string, string> = {
@@ -163,7 +246,7 @@ const MyProjects = () => {
           <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mb-8">
             My Projects
           </h1>
-          <p className="text-zinc-400 mb-8">Sign in with GitHub to view your repositories.</p>
+          <p className="text-zinc-400 mb-8">Sign in with GitHub to view your public repositories.</p>
           <div className="inline-flex items-center gap-3 px-6 py-3 bg-zinc-900 border border-zinc-700 rounded-full text-zinc-400">
             <Github size={20} />
             <span className="font-mono text-sm uppercase tracking-widest">Sign in required</span>
@@ -227,7 +310,7 @@ const MyProjects = () => {
             }`}
           >
             <Github size={14} />
-            GitHub_Repos
+            Public_GitHub_Repos
             <span className="ml-1">({repos.length})</span>
           </button>
         </div>
@@ -255,7 +338,7 @@ const MyProjects = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {myCreations.map((project, idx) => (
+                {myCreations.map((project: UserProject, idx: number) => (
                   <motion.div
                     key={project._id}
                     initial={{ opacity: 0, y: 20 }}
@@ -269,6 +352,7 @@ const MyProjects = () => {
                         src={project.imageUrl}
                         alt={project.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
                       />
                     </div>
 
@@ -351,7 +435,7 @@ const MyProjects = () => {
                   <div className="w-2 h-8 bg-accent animate-bounce [animation-delay:0.4s]" />
                 </div>
                 <p className="font-mono text-sm text-zinc-500 uppercase tracking-widest">
-                  Fetching_GitHub_Repos...
+                  Fetching_Public_GitHub_Repos...
                 </p>
               </div>
             ) : error ? (
@@ -363,7 +447,7 @@ const MyProjects = () => {
               </div>
             ) : repos.length === 0 ? (
               <div className="text-center py-20">
-                <p className="text-zinc-500">No repositories found.</p>
+                <p className="text-zinc-500">No public repositories found.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -460,23 +544,28 @@ const MyProjects = () => {
             className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 md:p-6"
           >
             <motion.div
+              ref={analysisDialogRef}
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-2xl bg-[#0a0a0a] border border-accent/30 rounded-2xl shadow-[0_0_50px_rgba(196,255,14,0.1)] overflow-hidden max-h-[80vh] flex flex-col"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="analysis-modal-title"
             >
               <div className="flex items-center justify-between p-6 border-b border-white/5">
                 <div className="flex items-center gap-3">
                   <Sparkles size={20} className="text-accent" />
                   <div>
-                    <h2 className="font-bold text-lg">AI Analysis</h2>
+                    <h2 id="analysis-modal-title" className="font-bold text-lg">AI Analysis</h2>
                     <p className="font-mono text-[10px] text-zinc-500 uppercase tracking-widest">{analysisRepoName}</p>
                   </div>
                 </div>
                 <button
                   onClick={closeAnalysis}
                   className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center hover:border-accent hover:text-accent transition-colors"
+                  aria-label="Close AI analysis"
                 >
                   <X size={16} />
                 </button>
@@ -501,15 +590,21 @@ const MyProjects = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4"
+            onClick={() => setDeleteConfirmId(null)}
           >
             <motion.div
+              ref={deleteDialogRef}
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
               className="bg-[#0a0a0a] border border-red-500/30 rounded-2xl p-8 max-w-md w-full text-center"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-modal-title"
             >
               <Trash2 size={48} className="mx-auto text-red-500 mb-4" />
-              <h3 className="text-xl font-bold mb-2">Delete_Project?</h3>
+              <h3 id="delete-modal-title" className="text-xl font-bold mb-2">Delete_Project?</h3>
               <p className="text-zinc-500 text-sm mb-6">
                 This action cannot be undone. The project card and its share link will be permanently removed.
               </p>

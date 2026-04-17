@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useRef, useCallback, useMemo, type ReactNode } from 'react';
 
 interface Interaction {
   sessionId: string;
@@ -48,20 +48,16 @@ interface SessionHeatmapProviderProps {
 }
 
 export const SessionHeatmapProvider = ({ children }: SessionHeatmapProviderProps) => {
-  // Store interactions in memory only - cleared on page refresh
-  const [interactionsByPath, setInteractionsByPath] = useState<Map<string, Interaction[]>>(new Map());
+  // Store interactions in memory only - cleared on page refresh.
+  // Refs keep high-frequency telemetry off the app-wide render path.
+  const interactionsByPathRef = useRef<Map<string, Interaction[]>>(new Map());
 
   const addInteraction = useCallback((interaction: Interaction) => {
-    setInteractionsByPath(prev => {
-      const newMap = new Map(prev);
-      const pathInteractions = newMap.get(interaction.path) || [];
-      
-      // Keep only last 100 interactions per path to prevent memory bloat
-      const updated = [...pathInteractions, interaction].slice(-100);
-      newMap.set(interaction.path, updated);
-      
-      return newMap;
-    });
+    const pathInteractions = interactionsByPathRef.current.get(interaction.path) || [];
+
+    // Keep only last 100 interactions per path to prevent memory bloat
+    const updated = [...pathInteractions, interaction].slice(-100);
+    interactionsByPathRef.current.set(interaction.path, updated);
   }, []);
 
   const addClick = useCallback((sessionId: string, path: string, x: number, y: number) => {
@@ -76,7 +72,7 @@ export const SessionHeatmapProvider = ({ children }: SessionHeatmapProviderProps
   }, [addInteraction]);
 
   const getHeatmapData = useCallback((path: string): HeatmapData => {
-    const interactions = interactionsByPath.get(path) || [];
+    const interactions = interactionsByPathRef.current.get(path) || [];
     
     const grid = createEmptyGrid();
     const clicks: { x: number; y: number }[] = [];
@@ -110,14 +106,19 @@ export const SessionHeatmapProvider = ({ children }: SessionHeatmapProviderProps
       totalClicks,
       totalMoves,
     };
-  }, [interactionsByPath]);
-
-  const clearData = useCallback(() => {
-    setInteractionsByPath(new Map());
   }, []);
 
+  const clearData = useCallback(() => {
+    interactionsByPathRef.current = new Map();
+  }, []);
+
+  const value = useMemo(
+    () => ({ addInteraction, addClick, getHeatmapData, clearData }),
+    [addInteraction, addClick, getHeatmapData, clearData]
+  );
+
   return (
-    <SessionHeatmapContext.Provider value={{ addInteraction, addClick, getHeatmapData, clearData }}>
+    <SessionHeatmapContext.Provider value={value}>
       {children}
     </SessionHeatmapContext.Provider>
   );

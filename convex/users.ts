@@ -59,7 +59,7 @@ export const getAll = query({
 export const updateRole = mutation({
   args: {
     userId: v.id("users"),
-    role: v.string(),
+    role: v.union(v.literal("visitor"), v.literal("admin")),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -150,14 +150,28 @@ export const trackPageView = mutation({
     sessionId: v.string(),
   },
   handler: async (ctx, args) => {
+    const now = Date.now();
     let userId = undefined;
     let clerkId = undefined;
 
     const identity = await ctx.auth.getUserIdentity();
     if (identity) {
       clerkId = identity.subject;
-      const user = await findUserByClerkId(ctx, clerkId);
+      const user =
+        (await findUserByClerkId(ctx, clerkId)) ?? (await ensureCurrentUser(ctx));
       userId = user?._id;
+    }
+
+    const lastView = await ctx.db
+      .query("page_views")
+      .withIndex("by_session_path", (q) =>
+        q.eq("sessionId", args.sessionId).eq("path", args.path)
+      )
+      .order("desc")
+      .first();
+
+    if (lastView && now - lastView.timestamp < 5 * 60 * 1000) {
+      return { skipped: true };
     }
 
     await ctx.db.insert("page_views", {
@@ -165,39 +179,47 @@ export const trackPageView = mutation({
       clerkId,
       path: args.path,
       projectSlug: args.projectSlug,
-      timestamp: Date.now(),
+      timestamp: now,
       sessionId: args.sessionId,
     });
+
+    return { skipped: false };
   },
 });
 
-// Get analytics data (admin only)
 export const getAnalytics = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
-    const totalUsers = await ctx.db.query("users").collect();
-    const totalViews = await ctx.db.query("page_views").collect();
-    const totalFavorites = await ctx.db.query("favorites").collect();
 
-    // Get views by path
+    const recentUsers = await ctx.db.query("users").order("desc").take(10);
+
+    const visitorStat = await ctx.db
+      .query("global_stats")
+      .withIndex("by_key", (q) => q.eq("key", "total_visitors"))
+      .unique();
+    const totalUsers = visitorStat?.value ?? recentUsers.length;
+
+    const recentViews = await ctx.db
+      .query("page_views")
+      .order("desc")
+      .take(500);
+
     const viewsByPath: Record<string, number> = {};
-    totalViews.forEach((view) => {
+    for (const view of recentViews) {
       viewsByPath[view.path] = (viewsByPath[view.path] || 0) + 1;
-    });
-
-    // Get most favorited projects
-    const favoritesByProject: Record<string, number> = {};
-    for (const fav of totalFavorites) {
-      const key = fav.projectId.toString();
-      favoritesByProject[key] = (favoritesByProject[key] || 0) + 1;
     }
 
+    const recentFavorites = await ctx.db
+      .query("favorites")
+      .order("desc")
+      .take(200);
+
     return {
-      totalUsers: totalUsers.length,
-      totalPageViews: totalViews.length,
-      totalFavorites: totalFavorites.length,
+      totalUsers,
+      totalPageViews: recentViews.length,
+      totalFavorites: recentFavorites.length,
       viewsByPath,
-      recentUsers: totalUsers.slice(0, 10),
+      recentUsers,
     };
   },
 });

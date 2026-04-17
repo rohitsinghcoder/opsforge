@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Mic, Loader2, Volume2, Zap } from 'lucide-react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface CommandPaletteOverlayProps {
   isCommandOpen: boolean;
@@ -40,6 +42,23 @@ const CommandPaletteOverlay = ({
   clearChatHistory,
   commands
 }: CommandPaletteOverlayProps) => {
+  const focusTrapRef = useFocusTrap(isCommandOpen);
+  const [highlightedCmd, setHighlightedCmd] = useState(-1);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedCmd((prev) => (prev + 1) % commands.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedCmd((prev) => (prev <= 0 ? commands.length - 1 : prev - 1));
+    } else if (e.key === 'Enter' && highlightedCmd >= 0 && !commandInput.trim()) {
+      e.preventDefault();
+      setCommandInput(commands[highlightedCmd] + ' ');
+      setHighlightedCmd(-1);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isCommandOpen && (
@@ -49,12 +68,17 @@ const CommandPaletteOverlay = ({
           exit={{ opacity: 0 }}
           onClick={() => setIsCommandOpen(false)}
           className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-start justify-center pt-[10vh] md:pt-[20vh] px-4 md:px-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command palette"
         >
           <motion.div 
+            ref={focusTrapRef}
             initial={{ y: -20, scale: 0.95 }}
             animate={{ y: 0, scale: 1 }}
             exit={{ y: -20, scale: 0.95 }}
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={handleKeyDown}
             className="w-full max-w-2xl bg-[#0a0a0a] border border-accent/30 rounded-2xl shadow-[0_0_50px_rgba(196,255,14,0.1)] overflow-hidden"
           >
             {/* Header with Close Button */}
@@ -206,15 +230,20 @@ const CommandPaletteOverlay = ({
             )}
 
             {/* Commands List */}
-            <div className="px-4 md:px-6 pb-4 md:pb-6 grid grid-cols-2 gap-2 border-t border-white/5 pt-4">
-              {commands.map((cmd: string) => (
+            <div className="px-4 md:px-6 pb-4 md:pb-6 grid grid-cols-2 gap-2 border-t border-white/5 pt-4" role="listbox" aria-label="Available commands">
+              {commands.map((cmd: string, idx: number) => (
                 <button 
                   key={cmd}
                   type="button"
+                  role="option"
+                  aria-selected={highlightedCmd === idx}
                   onClick={() => {
                     setCommandInput(cmd + ' ');
+                    setHighlightedCmd(-1);
                   }}
-                  className={`font-mono text-[10px] uppercase tracking-widest transition-colors text-left py-1 ${commandInput.startsWith(cmd) ? 'text-accent' : 'text-zinc-600 hover:text-zinc-400'}`}
+                  className={`font-mono text-[10px] uppercase tracking-widest transition-colors text-left py-1 ${
+                    highlightedCmd === idx ? 'text-accent bg-accent/10 rounded px-1' : commandInput.startsWith(cmd) ? 'text-accent' : 'text-zinc-600 hover:text-zinc-400'
+                  }`}
                 >
                   {cmd}
                 </button>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 
 interface ProjectData {
@@ -16,6 +17,8 @@ interface Props {
 
 const PreviewCard = ({ data }: Props) => {
   const hasImage = data.imageUrl && data.imageUrl.length > 0;
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const hasImageError = failedImageUrl === data.imageUrl;
 
   return (
     <motion.div
@@ -24,7 +27,7 @@ const PreviewCard = ({ data }: Props) => {
       className="relative aspect-[3/4] rounded-[2rem] overflow-hidden border border-white/10 bg-zinc-900/50 backdrop-blur-xl shadow-2xl group"
     >
       {/* Background Image */}
-      {hasImage ? (
+      {hasImage && !hasImageError ? (
         <motion.div
           className="absolute inset-0"
           style={{ scale: 1.1 }}
@@ -33,9 +36,8 @@ const PreviewCard = ({ data }: Props) => {
             src={data.imageUrl}
             alt=""
             className="w-full h-full object-cover opacity-50 group-hover:opacity-70 transition-opacity duration-700"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
+            onError={() => setFailedImageUrl(data.imageUrl)}
+            onLoad={() => setFailedImageUrl((current) => (current === data.imageUrl ? null : current))}
           />
         </motion.div>
       ) : (

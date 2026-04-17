@@ -1,11 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-
-const visibilityValidator = v.union(
-  v.literal("public"),
-  v.literal("unlisted"),
-  v.literal("private")
-);
+import { visibilityValidator } from "./lib/validators";
 
 export default defineSchema({
   // Projects table - stores portfolio projects
@@ -56,7 +51,8 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_path", ["path"])
-    .index("by_project", ["projectSlug"]),
+    .index("by_project", ["projectSlug"])
+    .index("by_session_path", ["sessionId", "path"]),
 
   // System logs - for tracking events like breaches and AI queries
   system_logs: defineTable({
@@ -64,7 +60,7 @@ export default defineSchema({
     user: v.string(),
     content: v.string(),
     timestamp: v.number(),
-  }),
+  }).index("by_timestamp", ["timestamp"]),
 
   // Global stats - aggregate metrics
   global_stats: defineTable({
@@ -83,7 +79,8 @@ export default defineSchema({
   })
     .index("by_path", ["path"])
     .index("by_session", ["sessionId"])
-    .index("by_type", ["type"]),
+    .index("by_type", ["type"])
+    .index("by_timestamp", ["timestamp"]),
 
   // User-created project cards (Live Project Builder)
   user_projects: defineTable({
@@ -125,6 +122,12 @@ export default defineSchema({
     .index("by_clerkId", ["clerkId"])
     .index("by_slug", ["shareSlug"])
     .index("by_visibility", ["visibility"]),
+
+  project_view_events: defineTable({
+    shareSlug: v.string(),
+    sessionId: v.string(),
+    viewedAt: v.number(),
+  }).index("by_slug_session", ["shareSlug", "sessionId"]),
 
   api_rate_limits: defineTable({
     identifier: v.string(),

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAction } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { getOrCreateClientId } from '../utils/clientIdentity';
@@ -48,6 +48,8 @@ export function usePlaygroundAI({ systemRules, initialFiles }: UsePlaygroundAIPr
   const [customFiles, setCustomFiles] = useState<Record<string, string>>(initialFiles);
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const lastKnownGoodCodeRef = useRef(initialFiles['/App.js'] ?? '');
   const generatePlaygroundCode = useAction(api.ai.generatePlaygroundCode);
 
   const callAi = async (prompt: string, isModification: boolean): Promise<string | null> => {
@@ -71,21 +73,45 @@ export function usePlaygroundAI({ systemRules, initialFiles }: UsePlaygroundAIPr
     return code;
   };
 
-  const generateFromPrompt = async (prompt: string, onGenerateCallback?: () => void) => {
+  const applyCodeUpdate = (code: string | null, onGenerateCallback?: () => void) => {
+    if (code) {
+      lastKnownGoodCodeRef.current = code;
+      setCustomFiles(prev => ({ ...prev, '/App.js': code }));
+      if (onGenerateCallback) onGenerateCallback();
+      return true;
+    } else {
+      setCustomFiles(prev => ({ ...prev, '/App.js': lastKnownGoodCodeRef.current || prev['/App.js'] }));
+      return false;
+    }
+  };
+
+  const executeAiAction = async (prompt: string, isModification: boolean, onGenerateCallback?: () => void) => {
     setIsAiLoading(true);
-    setActivePrompt(prompt);
+    setAiError(null);
     try {
-      const code = await callAi(prompt, false);
-      if (code) {
-        setCustomFiles(prev => ({ ...prev, '/App.js': code }));
-        if (onGenerateCallback) onGenerateCallback();
+      const code = await callAi(prompt, isModification);
+      const success = applyCodeUpdate(code, onGenerateCallback);
+      const errorMessage = 'AI returned invalid code. Your previous working version is still loaded.';
+      
+      if (!success) {
+        setAiError(errorMessage);
+        if (isModification) setChatMessages(prev => [...prev, { role: 'ai', text: errorMessage }]);
+      } else if (isModification) {
+        setChatMessages(prev => [...prev, { role: 'ai', text: 'Code updated.' }]);
       }
-    } catch (err) {
-      console.error('AI generation error:', err);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'AI generation failed. Please try again.';
+      setAiError(message);
+      if (isModification) setChatMessages(prev => [...prev, { role: 'ai', text: message }]);
     } finally {
       setIsAiLoading(false);
-      setActivePrompt(null);
     }
+  };
+
+  const generateFromPrompt = async (prompt: string, onGenerateCallback?: () => void) => {
+    setActivePrompt(prompt);
+    await executeAiAction(prompt, false, onGenerateCallback);
+    setActivePrompt(null);
   };
 
   const handleChatSubmit = async (e: React.FormEvent, onGenerateCallback?: () => void) => {
@@ -95,26 +121,13 @@ export function usePlaygroundAI({ systemRules, initialFiles }: UsePlaygroundAIPr
 
     setChatInput('');
     setChatMessages(prev => [...prev, { role: 'user', text: msg }]);
-    setIsAiLoading(true);
-
-    try {
-      const code = await callAi(msg, true);
-      if (code) {
-        setCustomFiles(prev => ({ ...prev, '/App.js': code }));
-        if (onGenerateCallback) onGenerateCallback();
-        setChatMessages(prev => [...prev, { role: 'ai', text: 'Code updated.' }]);
-      } else {
-        setChatMessages(prev => [...prev, { role: 'ai', text: 'AI returned invalid code. Try rephrasing your request.' }]);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error. Try again.';
-      setChatMessages(prev => [...prev, { role: 'ai', text: message }]);
-    } finally {
-      setIsAiLoading(false);
-    }
+    await executeAiAction(msg, true, onGenerateCallback);
   };
 
-  const clearChat = () => setChatMessages([]);
+  const clearChat = () => {
+    setChatMessages([]);
+    setAiError(null);
+  };
 
   return {
     isAiLoading,
@@ -124,6 +137,7 @@ export function usePlaygroundAI({ systemRules, initialFiles }: UsePlaygroundAIPr
     chatInput,
     setChatInput,
     chatMessages,
+    aiError,
     handleChatSubmit,
     generateFromPrompt,
     clearChat

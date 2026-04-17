@@ -11,8 +11,14 @@
 import type * as ai from "../ai.js";
 import type * as heatmap from "../heatmap.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as lib_fetchUtils from "../lib/fetchUtils.js";
+import type * as lib_gemini from "../lib/gemini.js";
+import type * as lib_github from "../lib/github.js";
+import type * as lib_rateLimit from "../lib/rateLimit.js";
+import type * as lib_validators from "../lib/validators.js";
 import type * as logs from "../logs.js";
 import type * as projects from "../projects.js";
+import type * as rateLimit from "../rateLimit.js";
 import type * as user_projects from "../user_projects.js";
 import type * as users from "../users.js";
 
@@ -26,8 +32,14 @@ declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   heatmap: typeof heatmap;
   "lib/auth": typeof lib_auth;
+  "lib/fetchUtils": typeof lib_fetchUtils;
+  "lib/gemini": typeof lib_gemini;
+  "lib/github": typeof lib_github;
+  "lib/rateLimit": typeof lib_rateLimit;
+  "lib/validators": typeof lib_validators;
   logs: typeof logs;
   projects: typeof projects;
+  rateLimit: typeof rateLimit;
   user_projects: typeof user_projects;
   users: typeof users;
 }>;

@@ -1,19 +1,26 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { Zap, Cpu, Activity, ArrowUpRight, Plus } from 'lucide-react';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
+import type { Doc } from '../../convex/_generated/dataModel';
 import { useBlueprintContext } from '../contexts/BlueprintContext';
-import type { ConvexProject } from '../data/projects';
+import { usePageTitle } from '../hooks/usePageTitle';
+
+type PortfolioProject = Doc<'projects'>;
 
 const ProjectVault = () => {
+  usePageTitle('Vault');
   const scrollRef = useRef<HTMLDivElement>(null);
   const mouseRef = useRef({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const mouseMotionX = useMotionValue(0);
+  const mouseMotionY = useMotionValue(0);
+  const bgTextX = useTransform(mouseMotionX, (v) => v * -150);
+  const bgTextY = useTransform(mouseMotionY, (v) => v * -80);
   const [scrollProgress, setScrollProgress] = useState(0);
   const { setHoverMeta } = useBlueprintContext();
-  const [explorerProject, setExplorerProject] = useState<ConvexProject | null>(null);
+  const [explorerProject, setExplorerProject] = useState<PortfolioProject | null>(null);
   const [activeTab, setActiveTab] = useState<'stack' | 'palette' | 'data'>('stack');
 
   const projects = useQuery(api.projects.get);
@@ -26,7 +33,8 @@ const ProjectVault = () => {
       const x = (e.clientX / window.innerWidth) - 0.5;
       const y = (e.clientY / window.innerHeight) - 0.5;
       mouseRef.current = { x: e.clientX, y: e.clientY };
-      setMousePos({ x, y });
+      mouseMotionX.set(x);
+      mouseMotionY.set(y);
     };
 
     const handleMouseLeave = () => {
@@ -94,7 +102,7 @@ const ProjectVault = () => {
       container?.removeEventListener('touchmove', handleTouchMove);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [explorerProject, projects]);
+  }, [explorerProject, projects, mouseMotionX, mouseMotionY]);
 
   if (!projects) return (
     <div className="h-screen w-full bg-[#080808] flex items-center justify-center font-mono text-accent">
@@ -111,7 +119,7 @@ const ProjectVault = () => {
       {/* Liquid Background Text */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-5 select-none">
         <motion.h1 
-          style={{ x: mousePos.x * -150, y: mousePos.y * -80 }}
+          style={{ x: bgTextX, y: bgTextY }}
           className="text-[40vw] font-black uppercase text-white leading-none whitespace-nowrap italic"
         >
           Project_Nodes
@@ -130,11 +138,11 @@ const ProjectVault = () => {
         ref={scrollRef}
         className="h-full flex items-center gap-20 px-[15vw] overflow-x-auto no-scrollbar"
       >
-        {projects.map((project) => (
+        {projects.map((project: PortfolioProject) => (
           <motion.div 
             key={project._id}
             whileHover={{ y: -20 }}
-            onClick={() => setExplorerProject(project as ConvexProject)}
+            onClick={() => setExplorerProject(project)}
             onMouseEnter={(e) => {
               const bounds = (e.currentTarget as HTMLElement).getBoundingClientRect();
               setHoverMeta({
@@ -152,11 +160,11 @@ const ProjectVault = () => {
               {/* Image with Tilt Effect */}
               <motion.div 
                 style={{ scale: 1.1 }}
-                whileHover={{ scale: 1.15, x: mousePos.x * 30, y: mousePos.y * 30 }}
+                whileHover={{ scale: 1.15 }}
                 transition={{ type: "spring", stiffness: 100, damping: 25 }}
                 className="w-full h-full"
               >
-                <img src={project.image} alt={project.title} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 opacity-40 group-hover:opacity-100" />
+                <img src={project.image} alt={project.title} loading="lazy" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-1000 opacity-40 group-hover:opacity-100" />
               </motion.div>
 
               {/* Overlay Data */}

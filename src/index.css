@@ -153,3 +153,220 @@ canvas {
 .perspective-text {
   transform: perspective(1000px) rotateY(-10deg);
 }
+
+/* ═══════════════════════════════════════════
+   Solar System Navigator
+   ═══════════════════════════════════════════ */
+
+.solar-navigator {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: #020205;
+  overflow: hidden;
+}
+
+.solar-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* HUD Overlay */
+.solar-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  padding: 1.5rem;
+}
+
+.solar-hud > * {
+  pointer-events: auto;
+}
+
+.solar-hud-topleft {
+  position: absolute;
+  top: 6rem;
+  left: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.solar-back-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.solar-back-btn:hover {
+  border-color: #c4ff0e;
+  color: #c4ff0e;
+  background: rgba(196, 255, 14, 0.05);
+}
+
+.solar-title {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #fff;
+  line-height: 1;
+  margin: 0;
+}
+
+.solar-subtitle {
+  font-family: monospace;
+  font-size: 0.5625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  color: #71717a;
+  margin-top: 0.25rem;
+}
+
+.solar-hud-topright {
+  position: absolute;
+  top: 6rem;
+  right: 1.5rem;
+}
+
+.solar-mode-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(196, 255, 14, 0.2);
+  background: rgba(196, 255, 14, 0.05);
+  backdrop-filter: blur(12px);
+  font-family: monospace;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #c4ff0e;
+}
+
+.solar-hud-bottom {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.solar-instructions {
+  font-family: monospace;
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #52525b;
+  white-space: nowrap;
+}
+
+.solar-hud-legend {
+  position: absolute;
+  bottom: 2rem;
+  left: 1.5rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+}
+
+.solar-legend-title {
+  font-family: monospace;
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  color: #c4ff0e;
+  margin-bottom: 0.5rem;
+}
+
+.solar-legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.solar-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: monospace;
+  font-size: 0.5625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #a1a1aa;
+}
+
+.solar-legend-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+/* Hovered planet label — shown in HUD overlay (replaces per-planet Html labels) */
+.solar-hover-label {
+  position: absolute;
+  top: 7rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: monospace;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #e4e4e7;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .solar-hud {
+    padding: 1rem;
+  }
+
+  .solar-hud-topleft {
+    top: 5rem;
+    left: 1rem;
+  }
+
+  .solar-hud-topright {
+    top: 5rem;
+    right: 1rem;
+  }
+
+  .solar-hud-legend {
+    display: none;
+  }
+
+  .solar-hud-bottom {
+    bottom: 1.5rem;
+  }
+
+  .solar-instructions {
+    font-size: 0.5rem;
+    letter-spacing: 0.1em;
+  }
+}

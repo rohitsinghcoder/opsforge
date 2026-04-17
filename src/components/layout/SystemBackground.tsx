@@ -12,7 +12,7 @@ const SystemBackground = ({ lowPowerMode, blueprint }: SystemBackgroundProps) =>
 
   return (
     <div className="fixed inset-0 pointer-events-none z-0">
-      <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
+      <Canvas camera={{ position: [0, 0, 5], fov: 45 }} dpr={[1, 1.5]}>
         <Suspense fallback={null}>
           <ambientLight intensity={0.5} />
           <pointLight position={[10, 10, 10]} intensity={1.5} />

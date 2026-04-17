@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { requireAdmin } from "./lib/auth";
 
 // Get all projects
 export const get = query({
@@ -13,10 +14,16 @@ export const get = query({
 export const getBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const project = await ctx.db
       .query("projects")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .unique();
+
+    if (!project || project.is_hidden) {
+      return null;
+    }
+
+    return project;
   },
 });
 
@@ -40,6 +47,8 @@ export const seed = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     const existing = await ctx.db.query("projects").collect();
     if (existing.length > 0) return "Database already seeded";
 

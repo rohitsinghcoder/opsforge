@@ -4,20 +4,35 @@ import { useQuery, useMutation } from 'convex/react';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, Github, ExternalLink, Calendar, User, Layers, Eye, Zap } from 'lucide-react';
 import { api } from '../../convex/_generated/api';
+import { getOrCreateSessionId } from '../utils/clientIdentity';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 const SharedProject = () => {
   const { slug } = useParams<{ slug: string }>();
   const project = useQuery(api.user_projects.getBySlug, slug ? { slug } : "skip");
+  usePageTitle(project?.title);
   const incrementViews = useMutation(api.user_projects.incrementViews);
-  const hasIncremented = useRef(false);
+  const lastIncrementedKeyRef = useRef<string | null>(null);
+  const sessionIdRef = useRef(getOrCreateSessionId());
 
-  // Increment view count only once per mount
   useEffect(() => {
-    if (slug && !hasIncremented.current) {
-      hasIncremented.current = true;
-      incrementViews({ slug });
+    if (!slug || !project) {
+      return;
     }
-  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const viewKey = `${slug}|${sessionIdRef.current}`;
+    if (lastIncrementedKeyRef.current === viewKey) {
+      return;
+    }
+
+    lastIncrementedKeyRef.current = viewKey;
+    void incrementViews({ slug, sessionId: sessionIdRef.current }).catch((error) => {
+      console.error('Failed to increment shared project views:', error);
+      if (lastIncrementedKeyRef.current === viewKey) {
+        lastIncrementedKeyRef.current = null;
+      }
+    });
+  }, [incrementViews, project, slug]);
 
   if (project === undefined) {
     return (
@@ -49,22 +64,6 @@ const SharedProject = () => {
             Return_Home
             <ArrowUpRight size={16} />
           </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // Check visibility
-  if (project.visibility === 'private') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-4xl font-black uppercase tracking-tighter mb-4">
-            Access_Denied
-          </h1>
-          <p className="font-mono text-sm text-zinc-500 uppercase">
-            This project is private
-          </p>
         </div>
       </div>
     );

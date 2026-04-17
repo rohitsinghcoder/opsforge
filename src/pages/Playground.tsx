@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Play, RotateCcw, Sparkles, Loader2, Copy, Check, Send, Zap } from 'lucide-react';
 import { useBlueprintContext } from '../contexts/BlueprintContext';
 import { usePlaygroundAI } from '../hooks/usePlaygroundAI';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 import {
   INITIAL_FILES,
@@ -12,6 +13,7 @@ import {
 } from '../utils/playgroundTemplates';
 
 const Playground = () => {
+  usePageTitle('Playground');
   const { blueprint } = useBlueprintContext();
   const [resetKey, setResetKey] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -25,6 +27,7 @@ const Playground = () => {
     chatInput,
     setChatInput,
     chatMessages,
+    aiError,
     handleChatSubmit,
     generateFromPrompt,
     clearChat
@@ -47,11 +50,18 @@ const Playground = () => {
     setResetKey(k => k + 1);
   };
 
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (copied) {
+      timeoutId = setTimeout(() => setCopied(false), 2000);
+    }
+    return () => clearTimeout(timeoutId);
+  }, [copied]);
+
   const handleCopyCode = async () => {
     try {
       await navigator.clipboard.writeText(customFiles['/App.js']);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch { /* ignore */ }
   };
 
@@ -137,6 +147,21 @@ const Playground = () => {
               <Loader2 size={14} className="text-accent animate-spin" />
               <span className="font-mono text-xs text-accent">
                 Echo-1 is generating your component...
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {aiError && !isAiLoading && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl"
+            >
+              <span className="font-mono text-xs text-red-300">
+                {aiError}
               </span>
             </motion.div>
           )}

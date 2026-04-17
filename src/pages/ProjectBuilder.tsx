@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useUser } from '@clerk/clerk-react';
 import { useMutation, useQuery } from 'convex/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 import BuilderStepIdentity from '../components/builder/BuilderStepIdentity';
 import BuilderStepStack from '../components/builder/BuilderStepStack';
@@ -41,17 +42,20 @@ const ProjectBuilder = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useUser();
   const isEditMode = Boolean(id);
+  usePageTitle(isEditMode ? 'Edit Project' : 'Create Project');
 
   const [currentStep, setCurrentStep] = useState(1);
   const [isCompiling, setIsCompiling] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [shareSlug, setShareSlug] = useState<string | null>(null);
   const [compileError, setCompileError] = useState<string | null>(null);
+  const compileDelayRef = useRef<number | null>(null);
+  const redirectTimerRef = useRef<number | null>(null);
 
   const [formData, setFormData] = useState<ProjectFormData>({
     title: '',
     clientName: '',
-    year: '2026',
+    year: new Date().getFullYear().toString(),
     category: '',
     stack: [],
     imageUrl: '',
@@ -90,27 +94,36 @@ const ProjectBuilder = () => {
     }
   }, [existingProject]);
 
-  // Load prefill data from Idea Generator
+  // Load prefill data from Idea Generator (via React Router state)
+  const location = useLocation();
   useEffect(() => {
-    const prefillData = sessionStorage.getItem('builderPrefill');
-    if (prefillData && !isEditMode) {
-      try {
-        const parsed = JSON.parse(prefillData);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setFormData(prev => ({
-          ...prev,
-          title: parsed.title || prev.title,
-          category: parsed.category || prev.category,
-          description: parsed.description || prev.description,
-          stack: parsed.stack || prev.stack,
-        }));
-        // Clear the prefill data after using it
-        sessionStorage.removeItem('builderPrefill');
-      } catch (e) {
-        console.error('Failed to parse prefill data:', e);
-      }
+    const prefill = location.state as Record<string, unknown> | null;
+    if (prefill && !isEditMode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFormData(prev => ({
+        ...prev,
+        title: (prefill.title as string) || prev.title,
+        category: (prefill.category as string) || prev.category,
+        description: (prefill.description as string) || prev.description,
+        stack: (prefill.stack as string[]) || prev.stack,
+      }));
+      // Clear router state so a refresh doesn't re-apply it
+      window.history.replaceState({}, '');
     }
-  }, [isEditMode]);
+  }, [isEditMode, location.state]);
+
+  const clearCompileTimers = useCallback(() => {
+    if (compileDelayRef.current !== null) {
+      window.clearTimeout(compileDelayRef.current);
+      compileDelayRef.current = null;
+    }
+    if (redirectTimerRef.current !== null) {
+      window.clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearCompileTimers(), [clearCompileTimers]);
 
   const updateField = (field: string, value: string | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -137,9 +150,10 @@ const ProjectBuilder = () => {
     formData.imageUrl.length > 0 &&
     formData.description.length > 0;
 
-  const handleCompile = async () => {
-    if (!user || !isFormValid) return;
+  const handleCompile = useCallback(async () => {
+    if (!user || !isFormValid || isCompiling) return;
 
+    clearCompileTimers();
     setIsCompiling(true);
     setCompileError(null);
 
@@ -179,20 +193,20 @@ const ProjectBuilder = () => {
         setShareSlug(result.shareSlug);
       }
 
-      // Simulate compile animation
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      setShowSuccess(true);
-
-      // Redirect after success
-      setTimeout(() => {
-        navigate('/my-projects');
-      }, 2500);
+      compileDelayRef.current = window.setTimeout(() => {
+        setShowSuccess(true);
+        compileDelayRef.current = null;
+        redirectTimerRef.current = window.setTimeout(() => {
+          navigate('/my-projects');
+          redirectTimerRef.current = null;
+        }, 2500);
+      }, 2000);
     } catch (error) {
       console.error('Failed to save project:', error);
       setCompileError(error instanceof Error ? error.message : 'Failed to compile project. Please try again.');
       setIsCompiling(false);
     }
-  };
+  }, [clearCompileTimers, createProject, existingProject, formData, id, isCompiling, isEditMode, isFormValid, navigate, updateProject, user]);
 
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 md:px-6">

@@ -4,10 +4,12 @@ import { useAction } from 'convex/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, Loader2, ChevronRight, ChevronDown, 
-  Folder, FileCode, ArrowRight, RefreshCw, Zap, X, Plus
+  Folder, FileCode, ArrowRight, RefreshCw, Zap
 } from 'lucide-react';
 import { api } from '../../convex/_generated/api';
 import { getOrCreateClientId } from '../utils/clientIdentity';
+import { usePageTitle } from '../hooks/usePageTitle';
+import TechSelector from '../components/ui/TechSelector';
 
 interface ProjectIdea {
   title: string;
@@ -42,9 +44,9 @@ const CATEGORIES = [
 ];
 
 const IdeaGenerator = () => {
+  usePageTitle('Project Ideas');
   const navigate = useNavigate();
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [customSkill, setCustomSkill] = useState('');
   const [complexity, setComplexity] = useState<'beginner' | 'intermediate' | 'advanced'>('intermediate');
   const [category, setCategory] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -53,24 +55,6 @@ const IdeaGenerator = () => {
   const [expandedFiles, setExpandedFiles] = useState(true);
   const [clientId] = useState(() => getOrCreateClientId());
   const generateProjectIdea = useAction(api.ai.generateProjectIdea);
-
-  const addSkill = (skill: string) => {
-    if (!selectedSkills.includes(skill)) {
-      setSelectedSkills([...selectedSkills, skill]);
-    }
-  };
-
-  const removeSkill = (skill: string) => {
-    setSelectedSkills(selectedSkills.filter(s => s !== skill));
-  };
-
-  const handleCustomSkill = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (customSkill.trim() && !selectedSkills.includes(customSkill.trim())) {
-      setSelectedSkills([...selectedSkills, customSkill.trim()]);
-      setCustomSkill('');
-    }
-  };
 
   const handleGenerate = async () => {
     if (selectedSkills.length === 0) {
@@ -82,34 +66,37 @@ const IdeaGenerator = () => {
     setError(null);
     setResult(null);
 
-    const response = await generateProjectIdea({
-      skills: selectedSkills,
-      complexity,
-      category: category || undefined,
-      clientId,
-    });
+    try {
+      const response = await generateProjectIdea({
+        skills: selectedSkills,
+        complexity,
+        category: category || undefined,
+        clientId,
+      });
 
-    if (typeof response === 'string') {
-      setError(response);
-    } else {
-      setResult(response);
+      if (typeof response === 'string') {
+        setError(response);
+      } else {
+        setResult(response);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Generation failed. Please try again.');
+    } finally {
+      setIsGenerating(false);
     }
-
-    setIsGenerating(false);
   };
 
   const handleUseInBuilder = () => {
     if (!result) return;
     
-    // Store the idea in sessionStorage to prefill builder
-    sessionStorage.setItem('builderPrefill', JSON.stringify({
-      title: result.title,
-      category: result.category,
-      description: result.description,
-      stack: result.stack,
-    }));
-    
-    navigate('/builder');
+    navigate('/builder', {
+      state: {
+        title: result.title,
+        category: result.category,
+        description: result.description,
+        stack: result.stack,
+      },
+    });
   };
 
   return (
@@ -142,58 +129,14 @@ const IdeaGenerator = () => {
           transition={{ delay: 0.1 }}
           className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 md:p-8 mb-8"
         >
-          {/* Selected Skills */}
           <div className="mb-6">
-            <label className="font-mono text-[10px] text-accent uppercase tracking-[0.3em] block mb-3">
-              Your_Skills ({selectedSkills.length} selected)
-            </label>
-            <div className="min-h-[50px] p-4 border border-white/10 rounded-xl bg-black/30 flex flex-wrap gap-2 mb-4">
-              {selectedSkills.length === 0 ? (
-                <span className="text-zinc-600 font-mono text-xs">Select skills below...</span>
-              ) : (
-                selectedSkills.map(skill => (
-                  <span
-                    key={skill}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-accent/10 border border-accent/30 rounded-full text-accent font-mono text-xs uppercase"
-                  >
-                    {skill}
-                    <button onClick={() => removeSkill(skill)} className="hover:text-red-400">
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))
-              )}
-            </div>
-
-            {/* Custom Skill Input */}
-            <form onSubmit={handleCustomSkill} className="flex gap-2 mb-4">
-              <input
-                type="text"
-                value={customSkill}
-                onChange={(e) => setCustomSkill(e.target.value)}
-                placeholder="Add custom skill..."
-                className="flex-1 bg-transparent border-b border-white/10 focus:border-accent py-2 outline-none font-mono text-sm placeholder:text-zinc-700"
-              />
-              <button
-                type="submit"
-                className="w-8 h-8 rounded-full border border-accent/30 flex items-center justify-center text-accent hover:bg-accent hover:text-black transition-all"
-              >
-                <Plus size={14} />
-              </button>
-            </form>
-
-            {/* Preset Skills */}
-            <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto no-scrollbar">
-              {PRESET_SKILLS.filter(s => !selectedSkills.includes(s)).map(skill => (
-                <button
-                  key={skill}
-                  onClick={() => addSkill(skill)}
-                  className="px-3 py-1 border border-white/10 rounded-full font-mono text-[10px] text-zinc-500 hover:border-accent hover:text-accent transition-all"
-                >
-                  {skill}
-                </button>
-              ))}
-            </div>
+            <TechSelector
+              selected={selectedSkills}
+              onChange={setSelectedSkills}
+              presets={PRESET_SKILLS}
+              label="Your_Skills"
+              maxHeight="120px"
+            />
           </div>
 
           {/* Complexity & Category */}
