@@ -86,7 +86,7 @@ export const askEcho = action({
       const projects = await ctx.runQuery(api.projects.get, {});
       return await callGeminiText({
         apiKey,
-        model: "gemini-2.5-flash",
+        model: "gemini-1.5-flash",
         systemInstruction: buildEchoSystemPrompt(projects),
         contents: [
           ...(args.history ?? []),
@@ -156,7 +156,7 @@ Rules:
 
       const rawText = await callGeminiText({
         apiKey,
-        model: "gemini-2.5-flash",
+        model: "gemini-1.5-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         temperature: 0.9,
         responseMimeType: "application/json",
@@ -201,7 +201,7 @@ export const generatePlaygroundCode = action({
 
       const text = await callGeminiText({
         apiKey,
-        model: "gemini-2.5-flash",
+        model: "gemini-1.5-flash",
         contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
         temperature: 0.7,
       });
@@ -297,7 +297,7 @@ Keep the entire response under 200 words. Be specific and technical.`;
 
       const summary = await callGeminiText({
         apiKey,
-        model: "gemini-2.5-flash",
+        model: "gemini-1.5-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         temperature: 0.7,
       });

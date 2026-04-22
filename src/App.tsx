@@ -7,14 +7,14 @@ import ProtectedRoute from './components/layout/ProtectedRoute';
 
 // Pages (eager)
 import Home from './pages/Home';
-import ProjectVault from './pages/ProjectVault';
-import Works from './pages/Works';
-import ProjectDetail from './pages/ProjectDetail';
-import Archive from './pages/Archive';
-import Contact from './pages/Contact';
 import NotFound from './pages/NotFound';
 
 // Pages (lazy - heavy deps)
+const ProjectVault = lazy(() => import('./pages/ProjectVault'));
+const Works = lazy(() => import('./pages/Works'));
+const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
+const Archive = lazy(() => import('./pages/Archive'));
+const Contact = lazy(() => import('./pages/Contact'));
 const MyProjects = lazy(() => import('./pages/MyProjects'));
 const ProjectBuilder = lazy(() => import('./pages/ProjectBuilder'));
 const SharedProject = lazy(() => import('./pages/SharedProject'));
@@ -23,9 +23,10 @@ const Playground = lazy(() => import('./pages/Playground'));
 const SolarNavigator = lazy(() => import('./pages/SolarNavigator'));
 const IdeaForge = lazy(() => import('./pages/IdeaForge'));
 
-// Context
 import { SessionHeatmapProvider } from './contexts/SessionHeatmapContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { CursorProvider } from './contexts/CursorContext';
+import { BlueprintProvider } from './contexts/BlueprintContext';
 
 const LazyFallback = () => (
   <div className="min-h-screen flex items-center justify-center font-mono text-accent text-xs uppercase tracking-widest">
@@ -35,10 +36,12 @@ const LazyFallback = () => (
 
 function App() {
   return (
-    <ToastProvider>
-    <SessionHeatmapProvider>
-      <Router>
-        <Layout>
+    <CursorProvider>
+      <ToastProvider>
+      <SessionHeatmapProvider>
+        <BlueprintProvider>
+        <Router>
+          <Layout>
           <Suspense fallback={<LazyFallback />}>
             <Routes>
               <Route path="/" element={<Home />} />
@@ -60,8 +63,10 @@ function App() {
           </Suspense>
         </Layout>
       </Router>
+      </BlueprintProvider>
     </SessionHeatmapProvider>
     </ToastProvider>
+    </CursorProvider>
   );
 }
 

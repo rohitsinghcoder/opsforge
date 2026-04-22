@@ -58,6 +58,7 @@ const TechSelector = ({
                 {tech}
                 <button
                   onClick={() => removeTech(tech)}
+                  aria-label={`Remove ${tech}`}
                   className="hover:text-red-400 transition-colors"
                 >
                   <X size={12} />
@@ -69,11 +70,12 @@ const TechSelector = ({
       </div>
 
       <form onSubmit={handleCustomAdd} className="space-y-2">
-        <label className="font-mono text-[10px] text-zinc-500 uppercase tracking-[0.3em] block">
+        <label htmlFor="custom-module-input" className="font-mono text-[10px] text-zinc-500 uppercase tracking-[0.3em] block">
           Add_Custom_Module
         </label>
         <div className="flex gap-2">
           <input
+            id="custom-module-input"
             type="text"
             value={customInput}
             onChange={(e) => setCustomInput(e.target.value)}
@@ -82,6 +84,7 @@ const TechSelector = ({
           />
           <button
             type="submit"
+            aria-label="Add custom module"
             className="w-10 h-10 rounded-full border border-accent/30 flex items-center justify-center text-accent hover:bg-accent hover:text-black transition-all"
           >
             <Plus size={16} />

@@ -329,10 +329,13 @@ export const incrementViews = mutation({
       return { counted: false };
     }
 
+    const identity = await ctx.auth.getUserIdentity();
+    const trackingId = identity ? `auth-${identity.subject}` : args.sessionId;
+
     const existingView = await ctx.db
       .query("project_view_events")
       .withIndex("by_slug_session", (q) =>
-        q.eq("shareSlug", args.slug).eq("sessionId", args.sessionId)
+        q.eq("shareSlug", args.slug).eq("sessionId", trackingId)
       )
       .unique();
 
@@ -342,7 +345,7 @@ export const incrementViews = mutation({
 
     await ctx.db.insert("project_view_events", {
       shareSlug: args.slug,
-      sessionId: args.sessionId,
+      sessionId: trackingId,
       viewedAt: Date.now(),
     });
 

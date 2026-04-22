@@ -24,6 +24,7 @@ interface SessionHeatmapContextType {
   addClick: (sessionId: string, path: string, x: number, y: number) => void;
   getHeatmapData: (path: string) => HeatmapData;
   clearData: () => void;
+  subscribe: (path: string, callback: () => void) => () => void;
 }
 
 const GRID_SIZE = 10;
@@ -51,6 +52,17 @@ export const SessionHeatmapProvider = ({ children }: SessionHeatmapProviderProps
   // Store interactions in memory only - cleared on page refresh.
   // Refs keep high-frequency telemetry off the app-wide render path.
   const interactionsByPathRef = useRef<Map<string, Interaction[]>>(new Map());
+  const listenersRef = useRef<Map<string, Set<() => void>>>(new Map());
+
+  const subscribe = useCallback((path: string, callback: () => void) => {
+    if (!listenersRef.current.has(path)) {
+      listenersRef.current.set(path, new Set());
+    }
+    listenersRef.current.get(path)!.add(callback);
+    return () => {
+      listenersRef.current.get(path)?.delete(callback);
+    };
+  }, []);
 
   const addInteraction = useCallback((interaction: Interaction) => {
     const pathInteractions = interactionsByPathRef.current.get(interaction.path) || [];
@@ -58,6 +70,8 @@ export const SessionHeatmapProvider = ({ children }: SessionHeatmapProviderProps
     // Keep only last 100 interactions per path to prevent memory bloat
     const updated = [...pathInteractions, interaction].slice(-100);
     interactionsByPathRef.current.set(interaction.path, updated);
+
+    listenersRef.current.get(interaction.path)?.forEach(cb => cb());
   }, []);
 
   const addClick = useCallback((sessionId: string, path: string, x: number, y: number) => {
@@ -113,8 +127,8 @@ export const SessionHeatmapProvider = ({ children }: SessionHeatmapProviderProps
   }, []);
 
   const value = useMemo(
-    () => ({ addInteraction, addClick, getHeatmapData, clearData }),
-    [addInteraction, addClick, getHeatmapData, clearData]
+    () => ({ addInteraction, addClick, getHeatmapData, clearData, subscribe }),
+    [addInteraction, addClick, getHeatmapData, clearData, subscribe]
   );
 
   return (

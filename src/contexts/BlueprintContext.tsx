@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 
 export interface ComponentMeta {
   name: string;
@@ -28,12 +28,14 @@ export const useBlueprintContext = () => {
 
 interface BlueprintProviderProps {
   children: ReactNode;
-  value: BlueprintContextType;
 }
 
-export const BlueprintProvider = ({ children, value }: BlueprintProviderProps) => {
+export const BlueprintProvider = ({ children }: BlueprintProviderProps) => {
+  const [blueprint, setBlueprint] = useState(false);
+  const [hoverMeta, setHoverMeta] = useState<ComponentMeta | null>(null);
+
   return (
-    <BlueprintContext.Provider value={value}>
+    <BlueprintContext.Provider value={{ blueprint, setBlueprint, hoverMeta, setHoverMeta }}>
       {children}
     </BlueprintContext.Provider>
   );

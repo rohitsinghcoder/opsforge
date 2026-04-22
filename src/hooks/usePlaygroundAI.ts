@@ -65,10 +65,17 @@ export function usePlaygroundAI({ systemRules, initialFiles }: UsePlaygroundAIPr
     }
 
     const rawText = result.text || '';
+    if (!rawText.trim()) throw new Error('AI returned an empty response. Try rephrasing your prompt.');
+    
     const code = extractCode(rawText);
 
-    if (!code) return null;
-    if (!isValidComponent(code)) return null;
+    if (!code) {
+      throw new Error('AI failed to generate valid code structure. Ensure your request is technically clear.');
+    }
+    
+    if (!isValidComponent(code)) {
+      throw new Error('AI generated code but it is not a valid React component. Reverting to stable version.');
+    }
 
     return code;
   };
@@ -79,10 +86,8 @@ export function usePlaygroundAI({ systemRules, initialFiles }: UsePlaygroundAIPr
       setCustomFiles(prev => ({ ...prev, '/App.js': code }));
       if (onGenerateCallback) onGenerateCallback();
       return true;
-    } else {
-      setCustomFiles(prev => ({ ...prev, '/App.js': lastKnownGoodCodeRef.current || prev['/App.js'] }));
-      return false;
     }
+    return false;
   };
 
   const executeAiAction = async (prompt: string, isModification: boolean, onGenerateCallback?: () => void) => {
@@ -91,13 +96,15 @@ export function usePlaygroundAI({ systemRules, initialFiles }: UsePlaygroundAIPr
     try {
       const code = await callAi(prompt, isModification);
       const success = applyCodeUpdate(code, onGenerateCallback);
-      const errorMessage = 'AI returned invalid code. Your previous working version is still loaded.';
       
       if (!success) {
+        // This case should theoretically be handled by the throws in callAi, 
+        // but kept as safety
+        const errorMessage = 'Failed to apply code update.';
         setAiError(errorMessage);
         if (isModification) setChatMessages(prev => [...prev, { role: 'ai', text: errorMessage }]);
       } else if (isModification) {
-        setChatMessages(prev => [...prev, { role: 'ai', text: 'Code updated.' }]);
+        setChatMessages(prev => [...prev, { role: 'ai', text: 'Code updated successfully.' }]);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'AI generation failed. Please try again.';

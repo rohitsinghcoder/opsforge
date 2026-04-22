@@ -59,6 +59,7 @@ const SystemBreach = ({
                     </div>
                     <input 
                       autoFocus
+                      aria-label="Authorization Key"
                       value={breachInput}
                       onChange={(e) => setBreachInput(e.target.value)}
                       className="w-full bg-transparent border-b-2 border-red-600 py-4 outline-none text-red-500 text-2xl font-black text-center tracking-widest placeholder:text-red-900"

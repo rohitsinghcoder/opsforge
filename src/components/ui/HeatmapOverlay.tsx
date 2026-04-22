@@ -7,21 +7,21 @@ const HeatmapOverlay = () => {
   const { blueprint } = useBlueprintContext();
   const { pathname } = useLocation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { getHeatmapData } = useSessionHeatmap();
+  const { getHeatmapData, subscribe } = useSessionHeatmap();
   
-  // Re-render periodically to update the heatmap visualization
+  // Re-render when heatmap data changes
   const [, setTick] = useState(0);
   
   useEffect(() => {
     if (!blueprint) return;
     
-    // Update heatmap display every 2 seconds when in blueprint mode
-    const interval = setInterval(() => {
+    // Subscribe to heatmap updates
+    const unsubscribe = subscribe(pathname, () => {
       setTick(t => t + 1);
-    }, 2000);
+    });
     
-    return () => clearInterval(interval);
-  }, [blueprint]);
+    return () => unsubscribe();
+  }, [blueprint, pathname, subscribe]);
 
   // Get heatmap data from session context
   const heatmapData = blueprint ? getHeatmapData(pathname) : null;

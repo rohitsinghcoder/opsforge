@@ -5,7 +5,7 @@ import { Activity, Terminal } from 'lucide-react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 
-import CustomCursor from '../ui/CustomCursor';
+import { CustomCursor } from '../ui/CustomCursor';
 import FpsCounter from '../ui/FpsCounter';
 import Header from './Header';
 import SystemBreach from './SystemBreach';
@@ -14,7 +14,7 @@ const BlueprintMetadata = lazy(() => import('../ui/BlueprintMetadata'));
 const HeatmapOverlay = lazy(() => import('../ui/HeatmapOverlay'));
 const CommandPaletteOverlay = lazy(() => import('./CommandPaletteOverlay'));
 
-import { BlueprintProvider, type ComponentMeta } from '../../contexts/BlueprintContext';
+import { useBlueprintContext } from '../../contexts/BlueprintContext';
 import useHeatmapTracking from '../../hooks/useHeatmapTracking';
 import useVelocityTracker from '../../hooks/useVelocityTracker';
 import useCommandPalette from '../../hooks/useCommandPalette';
@@ -30,9 +30,8 @@ const SystemBackground = lazy(() => import('./SystemBackground'));
 
 const Layout = ({ children }: LayoutProps) => {
   const { pathname } = useLocation();
-  const [blueprint, setBlueprint] = useState(false);
+  const { blueprint, setBlueprint, setHoverMeta } = useBlueprintContext();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [hoverMeta, setHoverMeta] = useState<ComponentMeta | null>(null);
   const [isGlitching, setIsGlitching] = useState(false);
   const [lowPowerMode, setLowPowerMode] = useState(false);
 
@@ -102,12 +101,11 @@ const Layout = ({ children }: LayoutProps) => {
   }, [pathname]);
 
   return (
-    <BlueprintProvider value={{ blueprint, setBlueprint, hoverMeta, setHoverMeta }}>
-      <div className={`relative min-h-screen transition-colors duration-700 ${blueprint ? 'blueprint-mode' : 'bg-[#050505]'} ${isGlitching ? 'glitch-active' : ''} ${isBreached ? 'breach-active' : ''} text-white`}>
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[999] focus:px-4 focus:py-2 focus:bg-accent focus:text-black focus:rounded-lg focus:font-mono focus:text-xs focus:uppercase focus:tracking-widest"
-        >
+    <div className={`relative min-h-screen transition-colors duration-700 ${blueprint ? 'blueprint-mode' : 'bg-[#050505]'} ${isGlitching ? 'glitch-active' : ''} ${isBreached ? 'breach-active' : ''} text-white`}>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[999] focus:px-4 focus:py-2 focus:bg-accent focus:text-black focus:rounded-lg focus:font-mono focus:text-xs focus:uppercase focus:tracking-widest"
+      >
           Skip to content
         </a>
         <div className="noise" />
@@ -230,7 +228,6 @@ const Layout = ({ children }: LayoutProps) => {
           </div>
         </footer>
       </div>
-    </BlueprintProvider>
   );
 };
 

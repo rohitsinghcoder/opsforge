@@ -1,8 +1,21 @@
-import { useRef, useCallback, useMemo, useState } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 export type PlanetGeometry = 'sphere' | 'icosahedron' | 'torusKnot' | 'dodecahedron' | 'octahedron' | 'box';
+
+// Shared geometry cache to save memory and draw calls across multiple Planet instances
+const GEOMETRIES: Record<PlanetGeometry, THREE.BufferGeometry> = {
+  sphere: new THREE.SphereGeometry(1, 16, 16),
+  icosahedron: new THREE.IcosahedronGeometry(1, 0),
+  torusKnot: new THREE.TorusKnotGeometry(0.7, 0.25, 32, 8),
+  dodecahedron: new THREE.DodecahedronGeometry(1, 0),
+  octahedron: new THREE.OctahedronGeometry(1, 0),
+  box: new THREE.BoxGeometry(1.3, 1.3, 1.3),
+};
+
+// Shared low-poly glow sphere geometry
+const GLOW_GEOMETRY = new THREE.SphereGeometry(1, 8, 8);
 
 interface PlanetProps {
   label: string;
@@ -100,26 +113,7 @@ const Planet = ({
     document.body.style.cursor = 'default';
   }, [onHover]);
 
-  const geometryObject = useMemo(() => {
-    switch (geometry) {
-      case 'icosahedron':
-        return new THREE.IcosahedronGeometry(1, 0);
-      case 'torusKnot':
-        return new THREE.TorusKnotGeometry(0.7, 0.25, 32, 8);
-      case 'dodecahedron':
-        return new THREE.DodecahedronGeometry(1, 0);
-      case 'octahedron':
-        return new THREE.OctahedronGeometry(1, 0);
-      case 'box':
-        return new THREE.BoxGeometry(1.3, 1.3, 1.3);
-      case 'sphere':
-      default:
-        return new THREE.SphereGeometry(1, 16, 16);
-    }
-  }, [geometry]);
-
-  // Glow sphere geometry — shared, low-poly
-  const glowGeometry = useMemo(() => new THREE.SphereGeometry(1, 8, 8), []);
+  const geometryObject = GEOMETRIES[geometry] || GEOMETRIES.sphere;
 
   return (
     <group ref={groupRef}>
@@ -145,7 +139,7 @@ const Planet = ({
       </mesh>
 
       {/* Glow effect — low-poly sphere */}
-      <mesh ref={glowRef} scale={size * 1.4} geometry={glowGeometry}>
+      <mesh ref={glowRef} scale={size * 1.4} geometry={GLOW_GEOMETRY}>
         <meshBasicMaterial
           ref={glowMaterialRef}
           color={emissive}
